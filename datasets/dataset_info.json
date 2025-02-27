@@ -1,0 +1,122 @@
+{
+    "MMLU": {
+        "dataset": {
+            "dataset_loading_way": "huggingface",
+            "dataset_path": "cais/mmlu",
+            "subset_name": "all",
+            "split_name": "test",
+            "dataset_type": "MCQ"
+        },
+        "system_prompt": "You are a helpful assistant that can answer multiple choice questions.",
+        "question": {
+            "question_key": "question"
+        },
+        "answer": {
+            "answer_key": "answer",
+            "answer_type": "choice"
+        },
+        "choices": {
+            "choices_type": "single",
+            "choices_key": "choices",
+            "sub_key": ""
+        },
+        "hint": {
+            "hint_key": ""
+        }
+    },
+    "GPQA": {
+        "dataset": {
+            "dataset_loading_way": "csv",
+            "dataset_path": "gpqa_main.csv",
+            "dataset_type": "MCQ"
+        },
+        "question": {
+            "question_key": "Question"
+        },
+        "answer": {
+            "answer_key": "Correct Answer",
+            "answer_type": "content"
+        },
+        "choices": {
+            "choices_type": "multiple",
+            "choices_key": ["Incorrect Answer 1", "Incorrect Answer 2", "Incorrect Answer 3", "Correct Answer"],
+            "sub_key": ""
+        },
+        "hint": {
+            "hint_key": ""
+        }
+    },
+    "HellaSwag": {
+        "dataset": {
+            "dataset_loading_way": "huggingface",
+            "dataset_path": "Rowan/hellaswag",
+            "subset_name": "",
+            "split_name": "test",
+            "dataset_type": "MCQ"
+        },
+        "system_prompt": "",
+        "question": {
+            "question_key": "ctx"
+        },
+        "answer": {
+            "answer_key": "label",
+            "answer_type": "choice"
+        },
+        "choices": {
+            "choices_type": "single",
+            "choices_key": "endings",
+            "sub_key": ""
+        },
+        "hint": {
+            "hint_key": ""
+        }
+    },
+    "AI2_ARC": {
+        "dataset": {
+            "dataset_loading_way": "huggingface",
+            "dataset_path": "allenai/ai2_arc",
+            "dataset_type": "MCQ"
+        },
+        "system_prompt": "",
+        "question": {
+            "question_key": "question"
+        },
+        "answer": {
+            "answer_key": "answerKey",
+            "answer_type": "choice"
+        },
+        "choices": {
+            "choices_type": "single",
+            "choices_key": "choices",
+            "sub_key": "text"
+        },
+        "hint": {
+            "hint_key": ""
+        }
+    },
+    "C-Eval": {
+        "dataset": {
+            "dataset_loading_way": "huggingface",
+            "dataset_path": "ceval/ceval-exam",
+            "dataset_type": "MCQ",
+            "subset_name": "accountant",
+            "split_name": "val"
+        },
+        "system_prompt": "",
+        "question": {
+            "question_key": "question"
+        },
+        "answer": {
+            "answer_key": "answer",
+            "answer_type": "choice"
+        },
+        "choices": {
+            "choices_type": "multiple",
+            "choices_key": ["A", "B", "C", "D"],
+            "sub_key": ""
+        },
+        "hint": {
+            "hint_key": ""
+        }
+    }
+}
