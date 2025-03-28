@@ -10,7 +10,7 @@ sys.path.append(str(project_root))
 
 from src.dataset.Text.TextMCQ import *
 from src.api.api import *
-from src.utils.constants import *
+from src.utils.MCQ_constants import *
 from tqdm import tqdm
 import concurrent.futures
 from typing import List, Tuple

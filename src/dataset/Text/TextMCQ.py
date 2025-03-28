@@ -8,7 +8,7 @@ sys.path.append(str(project_root))
 
 from datasets import load_dataset, Dataset
 from utils.utils_stategraph import *
-from utils.constants import *
+from utils.MCQ_constants import *
 from utils.utils_loading import *
 import random
 import json
@@ -23,29 +23,9 @@ class TextMCQ:
         self.dataset = self.convert_dataset()
 
     def convert_dataset(self):
-
         dataset_loading_way = self.dataset_info['loading_way']
         dataset_information = self.dataset_info['dataset']
         dataset = loading_map[dataset_loading_way](dataset_information)
-        # if dataset_loading_way == 'huggingface':
-        #     dataset_path = dataset_information['dataset_path']
-        #     subset_name = dataset_information['subset_name']
-        #     split_name = dataset_information['split_name']
-        #     dataset = load_dataset(path=dataset_path, name=subset_name, split=split_name, trust_remote_code=True)
-        # elif dataset_loading_way == 'csv':
-        #     dataset_path = dataset_information['dataset_path']
-        #     data_files = os.path.normpath(dataset_path)
-        #     dataset = load_dataset(
-        #         'csv', 
-        #         data_files={'test': data_files},
-        #         delimiter=','
-        #     )['test']
-        # elif dataset_loading_way == "json":
-        #     dataset_path = dataset_information['dataset_path']
-        #     dataset = load_dataset(
-        #         'json',
-        #         data_files={'test': dataset_path}
-        #     )['test']
         question_information = self.dataset_info['question']
         answer_information = self.dataset_info['answer']
         choices_information = self.dataset_info['choices']

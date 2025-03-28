@@ -10,14 +10,14 @@ def load_dataset_info(path):
         return json.load(f)
     
 def load_dataset_huggingface(dataset_info):
-    dataset_path = dataset_info['dataset_path']
+    dataset_path = dataset_info['path']
     subset_name = dataset_info['subset_name']
     split_name = dataset_info['split_name']
     dataset = load_dataset(path=dataset_path, name=subset_name, split=split_name, trust_remote_code=True)
     return dataset
     
 def load_dataset_csv(dataset_info):
-    dataset_path = dataset_info['dataset_path']
+    dataset_path = dataset_info['path']
     data_files = os.path.normpath(dataset_path)
     dataset = load_dataset(
         'csv',
@@ -27,7 +27,8 @@ def load_dataset_csv(dataset_info):
     return dataset
 
 def load_dataset_json(dataset_info):
-    dataset_path = dataset_info['dataset_path']
+    dataset_path = dataset_info['path']
+    print(dataset_path)
     data_files = os.path.normpath(dataset_path)
     dataset = load_dataset(
         'json',
@@ -38,5 +39,6 @@ def load_dataset_json(dataset_info):
 loading_map = {
     'huggingface': load_dataset_huggingface,
     'csv': load_dataset_csv,
-    'json': load_dataset_json
+    'json': load_dataset_json,
+    'jsonl': load_dataset_json
 }

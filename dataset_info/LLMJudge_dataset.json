@@ -1,0 +1,15 @@
+{
+    "MT-Bench": {
+        "language": "en",
+        "question": {
+            "loading_way": "json",
+            "path": "data/mt-bench/question.jsonl",
+            "key": "turns"
+        },
+        "answer": {
+            "loading_way": "json",
+            "path": "data/mt-bench/question.jsonl",
+            "key": "reference"
+        }
+    }
+}
