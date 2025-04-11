@@ -1,74 +1,77 @@
 {
     "MMLU": {
-        "loading_way": "huggingface",
-        "dataset": {
-            "dataset_path": "cais/mmlu",
-            "subset_name": "all",
-            "split_name": "test",
-            "dataset_type": "MCQ"
-        },
         "language": "en",
         "question": {
-            "question_key": "question",
+            "loading_way": "huggingface",
+            "path": "cais/mmlu",
+            "subset_name": "all",
+            "split_name": "test",
+            "key": "question",
             "question_type_key": ""
         },
         "answer": {
-            "answer_existence": true,
-            "answer_key": "answer",
+            "loading_way": "huggingface",
+            "path": "cais/mmlu",
+            "subset_name": "all",
+            "split_name": "test",
+            "key": "answer",
             "answer_type": "choice"
         },
         "choices": {
-            "choices_key": "choices",
+            "loading_way": "huggingface",
+            "path": "cais/mmlu",
+            "subset_name": "all",
+            "split_name": "test",
+            "key": "choices",
             "sub_key": ""
         },
         "hint": {
-            "hint_key": ""
+
         }
     },
     "GPQA": {
-        "loading_way": "csv",
-        "dataset": {
-            "dataset_path": "WindaEvalKit/data/gpqa/gpqa_main.csv",
-            "dataset_type": "MCQ"
-        },
         "language": "en",
         "question": {
-            "question_key": "Question",
+            "loading_way": "csv",
+            "path": "data/gpqa/gpqa_main.csv",
+            "key": "Question",
             "question_type_key": ""
         },
         "answer": {
-            "answer_existence": true,
-            "answer_key": "Correct Answer",
+            "loading_way": "csv",
+            "path": "data/gpqa/gpqa_main.csv",
+            "key": "Correct Answer",
             "answer_type": "content"
         },
         "choices": {
-            "choices_key": ["Incorrect Answer 1", "Incorrect Answer 2", "Incorrect Answer 3", "Correct Answer"],
+            "loading_way": "csv",
+            "path": "data/gpqa/gpqa_main.csv",
+            "key": ["Incorrect Answer 1", "Incorrect Answer 2", "Incorrect Answer 3", "Correct Answer"],
             "sub_key": ""
         },
         "hint": {
-            "hint_key": ""
+
         }
     },
     "CMB": {
-        "loading_way": "json",
-        "dataset": {
-            "dataset_path": "WindaEvalKit/data/cmb/CMB-test-choice-question-merge.json",
-            "dataset_type": "MCQ"
-        },
         "language": "zh",
         "question": {
-            "question_key": "question",
+            "loading_way": "json",
+            "path": "data/cmb/CMB-test-choice-question-merge.json",
+            "key": "question",
             "question_type_key": "question_type"
         },
         "answer": {
-            "answer_existence": false
+
         },
         "choices": {
-            "choices_key": "option",
+            "loading_way": "json",
+            "path": "data/cmb/CMB-test-choice-question-merge.json",
+            "key": "option",
             "sub_key": ["A", "B", "C", "D", "E"]
         },
         "hint": {
-            "hint_key": ""
+
         }
     }
 }

@@ -1,27 +1,23 @@
-MCQ_TEMPLATE_ZH = """
-你现在是一个能回答中文选择题的AI助手。请准确回答所提供给你的选择题, 并遵循以下要求:
-1. 你每次的回答内容只能包含选项("A", "B", "C"，等等), 不允许出现其他内容。
+MCQ_TEMPLATE_SINGLE_ZH = """
+你现在是一个回答中文选择题的AI助手。该选择题只有一个正确选项。
+你的回答中只能有一个选项，且只能包含正确选项的字母。
 """
 
-MCQ_TEMPLATE_EN = """
-You are a helpful assistant that can answer multiple choice questions. Do not make any analysis or explanation, just answer with only the letter of the correct choice (A/B/C/D).
+MCQ_TEMPLATE_SINGLE_EN = """
+You are a helpful assistant that can answer multiple choice questions. This question has only one correct answer.
+Your answer must only contain the letter of the correct answer.
 """
 
-SINGLE_MCQ_TEMPLATE_ZH = """
-这道题只有一个正确答案。
+MCQ_TEMPLATE_MULTIPLE_ZH = """
+你现在是一个回答中文选择题的AI助手。该选择题有多个正确选项。
+你的回答中必须包含多个选项，且只能包含正确选项的字母。
 """
 
-MULTIPLE_MCQ_TEMPLATE_ZH = """
-这道题有多个正确答案。
+MCQ_TEMPLATE_MULTIPLE_EN = """
+You are a helpful assistant that can answer multiple choice questions. This question has multiple correct answers.
+Your answer must only contain the letters of the correct answers.
 """
 
-SINGLE_MCQ_TEMPLATE_EN = """
-This question has only one correct answer.
-"""
-
-MULTIPLE_MCQ_TEMPLATE_EN = """
-This question has multiple correct answers.
-"""
 
 MAX_CHOICE_MAP = {
     "CMB": 'E',
@@ -40,8 +36,8 @@ def build_patterns(dataset_name: str) -> list:
     
     # 构建非选项字母的模式
     non_choice = f'[^A-{max_letter}]'
-    
-    return [
+
+    patterns = [
         # 直接匹配
         f'^\s*({choice})\s*$',                    # 单个字母
         f'{non_choice}*({choice}){non_choice}*$',  # 句子中的单个字母
@@ -74,6 +70,8 @@ def build_patterns(dataset_name: str) -> list:
         f'({choice})\s*[是为]正确[的答案]?',        # "A是正确答案"
         f'最终[选择答案]\s*[为是：:\s]*({choice})',  # "最终选择为A"
     ]
+    
+    return max_letter, patterns
 
 def build_patterns_multi(dataset_name: str) -> list:
     """构建多选题的正则表达式模式"""
@@ -83,7 +81,7 @@ def build_patterns_multi(dataset_name: str) -> list:
     # 构建非选项字母的模式
     non_choice = f'[^A-{max_letter}]'
     
-    return [
+    patterns =[
         # 直接匹配多个选项
         f'({choice}[,，\s]*)+{choice}',           # "A,B,C" 或 "A B C"
         f'{non_choice}*({choice}[,，\s]*)+{choice}{non_choice}*$',  # 句子中的多个选项
@@ -104,21 +102,10 @@ def build_patterns_multi(dataset_name: str) -> list:
         f'[\[【\(（]({choice}[\]】\)）][,，\s]*)+{choice}[\]】\)）]'  # "[A][B][C]"
     ]
 
+    return max_letter, patterns 
+
 SINGLE_CHOICE_LIST = ["单项选择题", "single"]
 MULTIPLE_CHOICE_LIST = ["多项选择题", "multiple"]
 
-__all__ = [
-    'MCQ_TEMPLATE_ZH',
-    'MCQ_TEMPLATE_EN',
-    'MAX_CHOICE_MAP',
-    'get_choice_pattern',
-    'build_patterns',
-    'build_patterns_multi',
-    'SINGLE_CHOICE_LIST',
-    'MULTIPLE_CHOICE_LIST',
-    'SINGLE_MCQ_TEMPLATE_ZH',
-    'MULTIPLE_MCQ_TEMPLATE_ZH',
-    'SINGLE_MCQ_TEMPLATE_EN',
-    'MULTIPLE_MCQ_TEMPLATE_EN',
-]
+
 

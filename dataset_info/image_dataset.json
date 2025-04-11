@@ -1,0 +1,35 @@
+{
+    "MMStar": {
+        "language": "en",
+        "question": {
+            "loading_way": "huggingface",
+            "path": "Lin-chen/MMStar",
+            "subset_name": "",
+            "split_name": "val",
+            "key": "question",
+            "question_type_key": ""
+        },
+        "choices": {
+
+        },
+        "answer": {
+            "loading_way": "huggingface",
+            "path": "Lin-chen/MMStar",
+            "subset_name": "",
+            "split_name": "val",
+            "key": "answer",
+            "answer_type": "choice"
+        },
+        "hint": {
+
+        },
+        "image": {
+            "loading_way": "huggingface",
+            "path": "Lin-chen/MMStar",
+            "subset_name": "",
+            "split_name": "val",
+            "key": "image",
+            "image_type_key": ""
+        }
+    }
+}
