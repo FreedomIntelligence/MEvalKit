@@ -8,7 +8,6 @@ sys.path.append(str(project_root))
 
 from utils.utils_loading import *
 from utils.MCQ_constants import *
-from utils.utils_stategraph import *
 from utils.utils_loading import *
 
 DATASET_INFO = load_dataset_info("dataset_info/image_dataset.json")

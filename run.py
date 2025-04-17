@@ -1,11 +1,92 @@
-def build_api_from_config():
-    pass
+import argparse
+import os
+import sys
+from pathlib import Path
+from dotenv import load_dotenv
 
-def build_dataset_from_config(cfg, dataset_name):
-    pass
+# 添加项目根目录到路径
+project_root = Path(__file__).resolve().parent.parent
+sys.path.append(str(project_root))
+
+# 导入评估模块
+from evaluation.TextMCQ_eval import evaluate_mcq
+from evaluation.ImageMCQ_eval import evaluate_imagemcq
+from evaluation.LLMJudge_eval import evaluate_llmjudge
+
+
+
+
 
 def parse_args():
-    pass
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--dataset", type=str, required=False, default="MT-Bench",
+                        help="数据集名称，例如MMLU、GPQA等")
+    parser.add_argument("--model", type=str, required=False, default="gpt-3.5-turbo",
+                        help="准备进行评测的模型名称")
+    parser.add_argument("--judgment_model", type=str, required=False, default="gpt-4o",
+                        help="LLMJudge中用于评判的模型名称")
+    parser.add_argument("--question_number", type=int, required=False,default=2,
+                        help="LLMJudge中的问题编号")
+    parser.add_argument("--workers", type=int, required=False, default=64,
+                        help="并行处理的工作线程数量")
+    parser.add_argument("--evaluate_mode", type=str, required=False, default="resume_from_checkpoint")
+    return parser.parse_args()
 
 def main():
-    pass
+    # 加载环境变量
+    load_dotenv()
+    
+    # 解析命令行参数
+    args = parse_args()
+    
+    print(f"评估数据集: {args.dataset}")
+    print(f"使用模型: {args.model}")
+    
+    # 根据数据集类型选择评估函数
+    # 文本多选题数据集
+    text_mcq_datasets = ["MMLU", "CMB", "GPQA"]
+    # 图像多选题数据集
+    image_mcq_datasets = ["MMStar"]
+    # LLMJudge数据集
+    llm_judge_datasets = ["MT-Bench"]
+
+    
+    import json
+    results = {}
+    accuracy_result = {}
+    # 调用相应的评估函数
+    if args.dataset in text_mcq_datasets:
+        print(f"执行文本多选题评估，并行工作线程数: {args.workers}")
+        responses, accuracy = evaluate_mcq(args.dataset, args.model, max_workers=args.workers, evaluate_mode=args.evaluate_mode)
+    elif args.dataset in image_mcq_datasets:
+        print(f"执行图像多选题评估，并行工作线程数: {args.workers}")
+        responses, accuracy = evaluate_imagemcq(args.dataset, args.model, max_workers=args.workers, evaluate_mode=args.evaluate_mode)
+    elif args.dataset in llm_judge_datasets:
+        print(f"执行LLMJudge评估，问题编号: {args.question_number}")
+        responses = evaluate_llmjudge(args.dataset, args.model, args.judgment_model, args.question_number)
+        accuracy_result = {
+            "dataset": args.dataset,
+            "model": args.model,
+            "judgment_model": args.judgment_model,
+            "question_number": args.question_number,
+            "responses": responses
+        }
+        # 保存结果
+        results_dir = Path("results")
+        results_dir.mkdir(parents=True, exist_ok=True)
+        results_file = results_dir / f"{args.dataset}_{args.model}_{args.judgment_model}_{args.question_number}.json"
+        with open(results_file, "w") as f:
+            json.dump(accuracy_result, f)
+            
+    else:
+        print(f"不存在/尚未支持的数据集类型: {args.dataset}")
+        return
+
+
+if __name__ == "__main__":
+    main()
+
+
+
+
+

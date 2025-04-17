@@ -7,7 +7,6 @@ print(project_root)
 sys.path.append(str(project_root))
 
 from datasets import load_dataset, Dataset
-from utils.utils_stategraph import *
 from utils.MCQ_constants import *
 from utils.utils_loading import *
 import random
@@ -41,6 +40,10 @@ class TextMCQ():
                 question_type = "single"
             else:
                 question_type = d[question_type_key]
+                if question_type in SINGLE_CHOICE_LIST:
+                    question_type = "single"
+                elif question_type in MULTIPLE_CHOICE_LIST:
+                    question_type = "multiple"
             question_type_list.append(question_type)
         return result, question_type_list
     
@@ -62,7 +65,8 @@ class TextMCQ():
                 elif isinstance(sub_key, list):
                     choices = []
                     for k in sub_key:
-                        choices.append(d[key][k])
+                        if k in d[key]:
+                            choices.append(d[key][k])
                     result.append(choices)
             elif isinstance(key, list):
                 choices = []
@@ -98,4 +102,8 @@ class TextMCQ():
         answer_type = a_info['answer_type']
         return result, answer_type
     
+if __name__ == "__main__":
+    dataset = TextMCQ("CMB")
 
+    #print(dataset.answers)
+    print(dataset.question_type_list)

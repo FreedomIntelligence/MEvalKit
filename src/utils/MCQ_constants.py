@@ -20,7 +20,7 @@ Your answer must only contain the letters of the correct answers.
 
 
 MAX_CHOICE_MAP = {
-    "CMB": 'E',
+    "CMB": 'F',
     "MMLU": 'D',
     "GPQA": 'D',
 }
@@ -104,7 +104,7 @@ def build_patterns_multi(dataset_name: str) -> list:
 
     return max_letter, patterns 
 
-SINGLE_CHOICE_LIST = ["单项选择题", "single"]
+SINGLE_CHOICE_LIST = ["单项选择题", "single", "C型选择题"]
 MULTIPLE_CHOICE_LIST = ["多项选择题", "multiple"]
 
 

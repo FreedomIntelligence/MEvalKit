@@ -62,13 +62,16 @@
             "question_type_key": "question_type"
         },
         "answer": {
-
+            "loading_way": "json",
+            "path": "data/cmb/CMB-test-choice-answer.json",
+            "key": "answer",
+            "answer_type": "choice"
         },
         "choices": {
             "loading_way": "json",
             "path": "data/cmb/CMB-test-choice-question-merge.json",
             "key": "option",
-            "sub_key": ["A", "B", "C", "D", "E"]
+            "sub_key": ["A", "B", "C", "D", "E", "F"]
         },
         "hint": {
 

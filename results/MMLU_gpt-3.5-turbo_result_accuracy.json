@@ -1,0 +1,8 @@
+{
+    "accuracy": 0.5597830018083183,
+    "correct_count": 7739,
+    "valid_count": 13825,
+    "total_count": 14042,
+    "neglected_count": 217,
+    "neglected_ratio": 0.015453639082751745
+}
