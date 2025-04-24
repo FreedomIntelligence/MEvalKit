@@ -17,6 +17,7 @@ class TextAPI:
 
 
     def generate_response(self):
+        # 调用标准OpenAI接口
         retry_count = 0
         try:
             load_dotenv()
@@ -50,7 +51,7 @@ class TextAPI:
                 }
             response = requests.request("POST", url, headers=headers, json=payload)
             response_data = response.json()
-            print(response_data)
+            #print(response_data)
             if "error" in response_data:
                 return "Neglected"
             else:

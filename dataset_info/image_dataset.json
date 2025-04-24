@@ -28,8 +28,7 @@
             "path": "Lin-chen/MMStar",
             "subset_name": "",
             "split_name": "val",
-            "key": "image",
-            "image_type_key": ""
+            "key": "image"
         }
     }
 }

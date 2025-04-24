@@ -7,6 +7,7 @@ import cv2
 import numpy as np
 from dotenv import load_dotenv
 from typing import Dict, List, Any
+
 class MultiturnTextAPI:
     def __init__(self, model_name: str, system_prompt: str, user_prompt: str, temperature: float, conversation_id: str):
         self.model_name = model_name

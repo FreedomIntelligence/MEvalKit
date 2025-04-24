@@ -1,0 +1,24 @@
+{
+    "dataset_name": "MT-Bench",
+    "generate_model_name": "gpt-3.5-turbo",
+    "evaluate_model_name": "gpt-4o",
+    "total_questions": 160,
+    "valid_scores": 156,
+    "completion_ratio": 0.975,
+    "average_score": 32.83974358974359,
+    "max_score": 4000,
+    "min_score": 1,
+    "score_distribution": {
+        "9": 38,
+        "5": 11,
+        "8": 44,
+        "7": 13,
+        "4": 8,
+        "3": 14,
+        "10": 18,
+        "2": 5,
+        "4000": 1,
+        "1": 1,
+        "6": 3
+    }
+}

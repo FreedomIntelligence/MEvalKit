@@ -21,6 +21,16 @@ import random
 from dotenv import load_dotenv
 
 def extract_answer(response: str, dataset_name: str):
+    """
+    从模型响应中提取单选题答案
+    
+    参数:
+        response: 模型的响应文本
+        dataset_name: 数据集名称，用于确定答案格式
+    
+    返回:
+        提取的答案选项（如A、B、C、D），如果未找到则返回None
+    """
     if response == "Neglected":
         return response
     max_letter, PATTERNS = build_patterns(dataset_name)
@@ -31,6 +41,16 @@ def extract_answer(response: str, dataset_name: str):
     return None
 
 def extract_multi_answer(response: str, dataset_name: str) -> List[str]:
+    """
+    从模型响应中提取多选题答案
+    
+    参数:
+        response: 模型的响应文本
+        dataset_name: 数据集名称，用于确定答案格式
+    
+    返回:
+        提取的答案选项列表（如['A', 'B', 'C']），如果未找到则返回None
+    """
     if response == "Neglected":
         return response
     max_letter, PATTERNS_MULTI = build_patterns_multi(dataset_name)
@@ -60,27 +80,44 @@ def extract_multi_answer(response: str, dataset_name: str) -> List[str]:
     return None
 
 def shuffle_and_convert(dataset: ImageMCQ):
+    """
+    随机打乱选项顺序，并找到打乱后答案的索引
+    
+    参数:
+        dataset: ImageMCQ数据集实例
+    
+    返回:
+        打乱后的选项列表和对应的答案列表
+    """
     answers = dataset.answers
     answer_type = dataset.answer_type
     choices = dataset.choices
     question_type_list = dataset.question_type_list
+    
+    # 如果没有选项，直接返回
     if choices is None:
         return None, answers
+    
+    # 如果有选项但没有答案，只打乱选项
     if choices is not None and answers is None:
         new_choices = []
         for choice_list in choices:
             random.shuffle(choice_list)
             new_choices.append(choice_list)
         return new_choices, None
+    
+    # 如果既有选项又有答案，打乱选项并更新答案
     new_choices = []
     new_answer = []
 
     for choice_list, answer, question_type in zip(choices, answers, question_type_list):
+        # 多选题不打乱选项顺序
         if question_type == "multiple":
             new_choices.append(choice_list)
             new_answer.append(answer)
             continue
         else:
+            # 单选题处理：先找到正确答案对应的选项内容
             if answer != '' and answer_type == 'choice':
                 if isinstance(answer, int):
                     number_index = answer
@@ -92,15 +129,27 @@ def shuffle_and_convert(dataset: ImageMCQ):
                 elif '0' <= answer <= '9':
                     number_index = int(answer)
             answer = choice_list[number_index]
-                
+            
+            # 打乱选项顺序
             random.shuffle(choice_list)
+            # 找到打乱后正确答案的新位置
             answer_index = chr(choice_list.index(answer) + 65)
             new_choices.append(choice_list)
             new_answer.append(answer_index)
+    
     return new_choices, new_answer
 
 def write_json_file(data, file_path):
-    """将数据写入JSON文件"""
+    """
+    将数据写入JSON文件
+    
+    参数:
+        data: 要写入的数据
+        file_path: 文件路径
+    
+    返回:
+        写入是否成功
+    """
     try:
         # 确保目录存在
         directory = os.path.dirname(file_path)
@@ -116,7 +165,15 @@ def write_json_file(data, file_path):
         return False
 
 def read_json_file(file_path):
-    """从JSON文件读取数据"""
+    """
+    从JSON文件读取数据
+    
+    参数:
+        file_path: 文件路径
+    
+    返回:
+        读取的数据，如果文件不存在或读取失败则返回None
+    """
     try:
         if not os.path.exists(file_path):
             return None
@@ -127,7 +184,15 @@ def read_json_file(file_path):
         return None
 
 def process_image_question(args):
-    """处理单个图像问题"""
+    """
+    处理单个图像问题
+    
+    参数:
+        args: 包含处理问题所需参数的元组
+    
+    返回:
+        问题索引、提取的答案和正确答案
+    """
     i, question, dataset_name, image, choices, answer, hint, language, model_name, assistant_prompt, question_type = args
     
     try:
@@ -154,7 +219,18 @@ def process_image_question(args):
 
 def evaluate_imagemcq(dataset_name: str, model_name: str, max_workers=64,
                      evaluate_mode: Literal["start_from_beginning", "resume_from_checkpoint"] = "start_from_beginning"):
-    """并行评估图像问题"""
+    """
+    并行评估图像问题
+    
+    参数:
+        dataset_name: 数据集名称
+        model_name: 模型名称
+        max_workers: 最大并行工作线程数
+        evaluate_mode: 评估模式，"start_from_beginning"或"resume_from_checkpoint"
+    
+    返回:
+        评估结果和准确率
+    """
     # 准备文件路径
     result_file = f"{dataset_name}_{model_name}_result.json"
     accuracy_file = f"{dataset_name}_{model_name}_result_accuracy.json"

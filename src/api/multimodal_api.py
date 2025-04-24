@@ -57,11 +57,6 @@ class MultimodalAPI:
         pil_image = Image.fromarray(self.image_input)
         return self.encode_pil_input(pil_image)
 
-    def calculate_retry_delay(self, retry_count: int):
-        delay = self.initial_retry_delay * (2 ** (retry_count))
-        delay = min(delay, self.max_retry_delay)
-        jitter = random.uniform(-0.15, 0.15) * delay
-        return delay + jitter
     
     def generate_response(self):
         retry_count = 0

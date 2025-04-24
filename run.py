@@ -19,17 +19,15 @@ from evaluation.LLMJudge_eval import evaluate_llmjudge
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--dataset", type=str, required=False, default="MT-Bench",
+    parser.add_argument("--dataset", type=str, required=False, default="MMLU",
                         help="数据集名称，例如MMLU、GPQA等")
     parser.add_argument("--model", type=str, required=False, default="gpt-3.5-turbo",
                         help="准备进行评测的模型名称")
     parser.add_argument("--judgment_model", type=str, required=False, default="gpt-4o",
                         help="LLMJudge中用于评判的模型名称")
-    parser.add_argument("--question_number", type=int, required=False,default=2,
-                        help="LLMJudge中的问题编号")
     parser.add_argument("--workers", type=int, required=False, default=64,
                         help="并行处理的工作线程数量")
-    parser.add_argument("--evaluate_mode", type=str, required=False, default="resume_from_checkpoint")
+    parser.add_argument("--evaluate_mode", type=str, required=False, default="start_from_beginning")
     return parser.parse_args()
 
 def main():
@@ -63,20 +61,8 @@ def main():
         responses, accuracy = evaluate_imagemcq(args.dataset, args.model, max_workers=args.workers, evaluate_mode=args.evaluate_mode)
     elif args.dataset in llm_judge_datasets:
         print(f"执行LLMJudge评估，问题编号: {args.question_number}")
-        responses = evaluate_llmjudge(args.dataset, args.model, args.judgment_model, args.question_number)
-        accuracy_result = {
-            "dataset": args.dataset,
-            "model": args.model,
-            "judgment_model": args.judgment_model,
-            "question_number": args.question_number,
-            "responses": responses
-        }
-        # 保存结果
-        results_dir = Path("results")
-        results_dir.mkdir(parents=True, exist_ok=True)
-        results_file = results_dir / f"{args.dataset}_{args.model}_{args.judgment_model}_{args.question_number}.json"
-        with open(results_file, "w") as f:
-            json.dump(accuracy_result, f)
+        responses = evaluate_llmjudge(args.dataset, args.model, args.judgment_model)
+        
             
     else:
         print(f"不存在/尚未支持的数据集类型: {args.dataset}")

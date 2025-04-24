@@ -19,6 +19,16 @@ from dotenv import load_dotenv
 import re
 
 def extract_answer(response: str, dataset_name: str):
+    """
+    提取单选题答案
+    
+    参数:
+        response: 模型的响应文本
+        dataset_name: 数据集名称，用于确定答案格式
+        
+    返回:
+        提取的答案选项（如A、B、C、D），如果未找到则返回None
+    """
     if response == "Neglected":
         return response
     max_letter, PATTERNS = build_patterns(dataset_name)
@@ -29,7 +39,16 @@ def extract_answer(response: str, dataset_name: str):
     return None
 
 def extract_multi_answer(response: str, dataset_name: str) -> List[str]:
-    """提取多选题答案"""
+    """
+    提取多选题答案
+    
+    参数:
+        response: 模型的响应文本
+        dataset_name: 数据集名称，用于确定答案格式
+        
+    返回:
+        提取的答案选项列表（如['A', 'B', 'C']），如果未找到则返回None
+    """
     if response == "Neglected":
         return response
     max_letter, PATTERNS_MULTI = build_patterns_multi(dataset_name)
@@ -59,27 +78,44 @@ def extract_multi_answer(response: str, dataset_name: str) -> List[str]:
     return None
 
 def shuffle_and_convert(dataset: TextMCQ):
+    """
+    随机打乱选项顺序，并找到打乱后答案的索引
+    
+    参数:
+        dataset: TextMCQ数据集实例
+        
+    返回:
+        打乱后的选项列表和对应的答案列表
+    """
     answers = dataset.answers
     answer_type = dataset.answer_type
     choices = dataset.choices
     question_type_list = dataset.question_type_list
+    
+    # 如果没有选项，直接返回
     if choices is None:
         return None, answers
+    
+    # 如果有选项但没有答案，只打乱选项
     if choices is not None and answers is None:
         new_choices = []
         for choice_list in choices:
             random.shuffle(choice_list)
             new_choices.append(choice_list)
         return new_choices, None
+    
+    # 如果既有选项又有答案，打乱选项并更新答案
     new_choices = []
     new_answer = []
 
     for choice_list, answer, question_type in zip(choices, answers, question_type_list):
+        # 多选题不打乱选项顺序
         if question_type == "multiple":
             new_choices.append(choice_list)
             new_answer.append(answer)
             continue
         else:
+            # 单选题处理：先找到正确答案对应的选项内容
             if answer != '' and answer_type == 'choice':
                 if isinstance(answer, int):
                     number_index = answer
@@ -92,16 +128,28 @@ def shuffle_and_convert(dataset: TextMCQ):
                         number_index = int(answer)
                 answer = choice_list[number_index]
                     
+            # 打乱选项顺序
             random.shuffle(choice_list)
+            # 找到打乱后正确答案的新位置
             answer_index = chr(choice_list.index(answer) + 65)
             new_choices.append(choice_list)
             new_answer.append(answer_index)
+    
     return new_choices, new_answer
 
 def process_question(args):
-    """处理单个文本问题"""
+    """
+    处理单个文本问题
+    
+    参数:
+        args: 包含问题信息的元组，包括索引、数据集名称、问题、问题类型、选项、答案、提示、语言和模型名称
+        
+    返回:
+        问题索引、模型回答和正确答案的元组
+    """
     i, dataset_name, question, question_type, choices, answer, hint, language, model_name = args
     
+    # 统一问题类型格式
     if question_type in SINGLE_CHOICE_LIST:
         question_type = "single"
     elif question_type in MULTIPLE_CHOICE_LIST:
@@ -114,6 +162,7 @@ def process_question(args):
     if hint != "":
         question_prompt += f"\nHint: {hint}"
         
+    # 选择适当的提示模板
     if language == 'en' and question_type == 'single':
         system_prompt = MCQ_TEMPLATE_SINGLE_EN
     elif language == "en" and question_type == "multiple":
@@ -139,7 +188,16 @@ def process_question(args):
     return i, extracted_response, answer
 
 def write_json_file(data, file_path):
-    """将数据写入JSON文件"""
+    """
+    将数据写入JSON文件
+    
+    参数:
+        data: 要写入的数据
+        file_path: 文件路径
+        
+    返回:
+        写入是否成功
+    """
     try:
         # 确保目录存在
         directory = os.path.dirname(file_path)
@@ -155,7 +213,15 @@ def write_json_file(data, file_path):
         return False
 
 def read_json_file(file_path):
-    """从JSON文件读取数据"""
+    """
+    从JSON文件读取数据
+    
+    参数:
+        file_path: 文件路径
+        
+    返回:
+        读取的数据，如果文件不存在或读取失败则返回None
+    """
     try:
         if not os.path.exists(file_path):
             return None
@@ -167,7 +233,18 @@ def read_json_file(file_path):
 
 def evaluate_mcq(dataset_name: str, model_name: str, max_workers=64, 
                  evaluate_mode: Literal["start_from_beginning", "resume_from_checkpoint"] = "start_from_beginning"):
-    """并行评估文本问题"""
+    """
+    并行评估文本问题
+    
+    参数:
+        dataset_name: 数据集名称
+        model_name: 模型名称
+        max_workers: 最大并行工作线程数
+        evaluate_mode: 评估模式，"start_from_beginning"从头开始，"resume_from_checkpoint"从断点继续
+        
+    返回:
+        评估结果和准确率
+    """
     # 准备文件路径
     result_file = f"results/{dataset_name}_{model_name}_result.json"
     accuracy_file = f"results/{dataset_name}_{model_name}_result_accuracy.json"
@@ -249,6 +326,9 @@ def calculate_accuracy(results, answers, accuracy_file, question_type_list=None,
         accuracy_file: 准确率结果文件路径
         question_type_list: 问题类型列表，用于区分单选和多选题
         neglected_threshold: Neglected题目的最大比例阈值，超过此阈值则不计算准确率
+        
+    返回:
+        结果列表和准确率
     """
     # 计算Neglected题目的比例
     total_questions = len(results)
@@ -331,11 +411,8 @@ def calculate_accuracy(results, answers, accuracy_file, question_type_list=None,
     return results, accuracy
 
 if __name__ == "__main__":
-    load_dotenv()
-    # 从头开始评测
-    # responses, accuracy = evaluate_mcq("GPQA", "gpt-3.5-turbo", evaluate_mode="start_from_beginning")
-    
-    # 从断点处继续评测
-    responses, accuracy = evaluate_mcq("GPQA", "gpt-3.5-turbo", evaluate_mode="resume_from_checkpoint")
+    # 评估MMLU数据集
+    results, accuracy = evaluate_mcq("MMLU", "gpt-3.5-turbo", evaluate_mode="resume_from_checkpoint")
+    print(accuracy)
             
             

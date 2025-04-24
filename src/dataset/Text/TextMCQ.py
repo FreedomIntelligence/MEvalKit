@@ -25,7 +25,9 @@ class TextMCQ():
         self.hints = self.load_and_convert_hint()
         self.language = self.dataset_info['language']
 
+    # 根据config内容，提取评测集的题目内容及题目类型
     def load_and_convert_question(self):
+        # 获取评测集中
         q_info = self.dataset_info['question']
         loading_way = q_info['loading_way']
         question_type_key = q_info['question_type_key']
@@ -47,6 +49,7 @@ class TextMCQ():
             question_type_list.append(question_type)
         return result, question_type_list
     
+    # 根据config内容，提取评测集的选项
     def load_and_convert_choices(self):
         c_info = self.dataset_info['choices']
         if c_info == {}:
@@ -76,11 +79,14 @@ class TextMCQ():
 
         return result
     
+    # 根据config内容，提取评测集每个问题的提示
     def load_and_convert_hint(self):
+        # 若config中未提供提示相关信息，则返回None
         h_info = self.dataset_info['hint']
         if h_info == {}:
             return None
         else: 
+            # 读取
             loading_way = h_info['loading_way']
             key = h_info['key']
             data = loading_map[loading_way](h_info)
@@ -88,8 +94,10 @@ class TextMCQ():
             for d in data:
                 result.append(d[key])
             return result
-        
+    
+    # 提取评测集中的答案列表，并记录答案类型（选项形式/内容形式）
     def load_and_convert_answer(self):
+        # 若config中未提供答案相关信息，则全部返回None
         a_info = self.dataset_info['answer']
         if a_info == {}:
             return None, None
