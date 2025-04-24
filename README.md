@@ -29,10 +29,10 @@ MT-Bench等。
 | 评测集名称       | 评测集类型         | 评测集路径           |
 | --------------- | ----------------- | ----------------- |
 | MMLU            | 纯文本评测集       | https://huggingface.co/datasets/cais/mmlu |
-| GPQA            | 纯文本评测集       | -                                         |
-| CMB             | 纯文本评测集       | -                                         |
+| GPQA            | 纯文本评测集       | https://github.com/idavidrein/gpqa                                         |
+| CMB             | 纯文本评测集       | https://github.com/FreedomIntelligence/CMB                                         |
 | MMStar          | 多模态评测集       | https://huggingface.co/datasets/Lin-Chen/MMStar |
-| MT-Bench        | LLMJudge型评测集   | -                                         |
+| MT-Bench        | LLMJudge型评测集   | https://github.com/lm-sys/FastChat/tree/main/fastchat/llm_judge                                         |
 
 ## 评测模式与结果生成
 
