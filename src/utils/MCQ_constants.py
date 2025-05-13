@@ -1,22 +1,4 @@
-MCQ_TEMPLATE_SINGLE_ZH = """
-你现在是一个回答中文选择题的AI助手。该选择题只有一个正确选项。
-你的回答中只能有一个选项，且只能包含正确选项的字母。
-"""
 
-MCQ_TEMPLATE_SINGLE_EN = """
-You are a helpful assistant that can answer multiple choice questions. This question has only one correct answer.
-Your answer must only contain the letter of the correct answer.
-"""
-
-MCQ_TEMPLATE_MULTIPLE_ZH = """
-你现在是一个回答中文选择题的AI助手。该选择题有多个正确选项。
-你的回答中必须包含多个选项，且只能包含正确选项的字母。
-"""
-
-MCQ_TEMPLATE_MULTIPLE_EN = """
-You are a helpful assistant that can answer multiple choice questions. This question has multiple correct answers.
-Your answer must only contain the letters of the correct answers.
-"""
 
 
 MAX_CHOICE_MAP = {

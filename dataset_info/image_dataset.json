@@ -1,6 +1,9 @@
 {
     "MMStar": {
         "language": "en",
+        "system_prompt": {
+
+        },
         "question": {
             "loading_way": "huggingface",
             "path": "Lin-chen/MMStar",

@@ -1,4 +1,5 @@
 import json
+import datasets
 from datasets import load_dataset
 import os
 
@@ -9,6 +10,7 @@ def load_dataset_info(path):
     with open(path, 'r') as f:
         return json.load(f)
 
+datasets.builder.has_sufficient_disk_space = lambda needed_bytes, directory='.': True
 #将huggingface数据集加载为dataset对象
 def load_dataset_huggingface(dataset_info):
     dataset_path = dataset_info['path']

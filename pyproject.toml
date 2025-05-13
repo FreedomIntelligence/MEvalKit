@@ -1,0 +1,26 @@
+[project]
+name = "mevalkit"
+version = "0.1.0"
+description = "A Python Kit for evaluating LLMs with different evaluating sets"
+authors = [
+    {name = "ElShaddollConstruct",email = "1481345518@qq.com"}
+]
+license = {text = "Apache"}
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "image (>=1.5.33,<2.0.0)",
+    "opencv-python (>=4.11.0.86,<5.0.0.0)",
+    "requests (>=2.32.3,<3.0.0)",
+    "dotenv (>=0.9.9,<0.10.0)",
+    "numpy (>=2.2.5,<3.0.0)",
+    "datasets (>=3.5.0,<4.0.0)",
+    "tqdm (>=4.67.1,<5.0.0)",
+    "openai (>=1.76.0,<2.0.0)",
+    "flask (>=3.1.0,<4.0.0)"
+]
+
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"

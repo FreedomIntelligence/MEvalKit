@@ -13,6 +13,7 @@ from src.dataset.Image.ImageMCQ import *
 from src.api.multimodal_api import *
 from src.utils.MCQ_constants import *
 from src.utils.map_constants import *
+from src.utils.default_prompts import *
 from tqdm import tqdm
 import concurrent.futures
 from typing import List, Tuple, Dict, Any, Literal
@@ -218,7 +219,8 @@ def process_image_question(args):
         return i, "Neglected", answer
 
 def evaluate_imagemcq(dataset_name: str, model_name: str, max_workers=64,
-                     evaluate_mode: Literal["start_from_beginning", "resume_from_checkpoint"] = "start_from_beginning"):
+                     evaluate_mode: Literal["start_from_beginning", "resume_from_checkpoint"] = "start_from_beginning",
+                     question_limitation: int = 100):
     """
     并行评估图像问题
     
@@ -232,8 +234,8 @@ def evaluate_imagemcq(dataset_name: str, model_name: str, max_workers=64,
         评估结果和准确率
     """
     # 准备文件路径
-    result_file = f"{dataset_name}_{model_name}_result.json"
-    accuracy_file = f"{dataset_name}_{model_name}_result_accuracy.json"
+    result_file = f"results/{dataset_name}_{model_name}_result.json"
+    accuracy_file = f"results/{dataset_name}_{model_name}_result_accuracy.json"
     
     model = model_map[model_name]
     # 加载数据集
@@ -246,7 +248,7 @@ def evaluate_imagemcq(dataset_name: str, model_name: str, max_workers=64,
     
     if evaluate_mode == "start_from_beginning" or not os.path.exists(result_file):
         # 从头开始评测：初始化所有题目的结果为"Neglected"
-        results = [{"id": i, "response": "Neglected"} for i in range(len(dataset.questions))]
+        results = [{"id": i, "response": "Neglected"} for i in range(question_limitation)]
         # 写入初始结果文件
         write_json_file(results, result_file)
     else:
@@ -256,12 +258,12 @@ def evaluate_imagemcq(dataset_name: str, model_name: str, max_workers=64,
             results = existing_results
         else:
             # 如果文件存在但无法读取，则从头开始
-            results = [{"id": i, "response": "Neglected"} for i in range(len(dataset.questions))]
+            results = [{"id": i, "response": "Neglected"} for i in range(question_limitation)]
             write_json_file(results, result_file)
     
     # 准备参数列表
     args_list = []
-    for i in range(len(dataset.questions)):
+    for i in range(question_limitation):
         # 检查是否需要处理此题
         if evaluate_mode == "resume_from_checkpoint" and results[i]["response"] != "Neglected":
             print(f"跳过已完成的问题 {i+1}")

@@ -15,6 +15,7 @@ from src.dataset.LLMJudge.LLMJudgeBase import *
 from src.api.text_api import *
 from src.api.multiturn_text_api import *
 from src.utils.LLMJudge_constants import *
+from src.utils.default_prompts import *
 from typing import List, Tuple, Dict, Any, Optional, Union
 from dotenv import load_dotenv
 
@@ -80,15 +81,17 @@ def extract_score(evaluate_response: str) -> Optional[Union[int, float]]:
 
 def process_single_question(args):
     """
-    处理单个问题的评估
+    处理单个问题
     
     参数:
-        args: 包含问题信息的元组
+        args: (idx, question, reference_answer, generate_model_name, evaluate_model_name, temperature)
         
     返回:
-        包含评估结果的字典
+        (idx, result): 问题索引和处理结果
     """
     idx, question, reference_answer, generate_model_name, evaluate_model_name, temperature = args
+    
+    # 不再在这里使用tqdm显示进度
     
     result = {
         "question": question,
@@ -100,7 +103,7 @@ def process_single_question(args):
     
     try:
         # 使用生成模型回答问题
-        generate_chat = MultiturnTextAPI(generate_model_name, GENERATE_SYSTEM_PROMPT, question, temperature, f"GenerateAgent_{idx}")
+        generate_chat = MultiturnTextAPI(generate_model_name, DEFAULT_GENERATE_SYSTEM_PROMPT, question, temperature, f"GenerateAgent_{idx}")
         generate_response = generate_chat.generate_response()
         result["generate_response"] = generate_response
         
@@ -108,10 +111,10 @@ def process_single_question(args):
             # 使用评估模型评估回答
             if reference_answer is not None:
                 evaluate_prompt = f"Question: {question}\n\nGenerate Response: {generate_response}\n\nReference Answer: {reference_answer}"
-                evaluate_chat = TextAPI(evaluate_model_name, JUDGE_SYSTEM_PROMPT_REASONING, evaluate_prompt, 0.7)
+                evaluate_chat = TextAPI(evaluate_model_name, DEFAULT_JUDGE_SYSTEM_PROMPT_REASONING, evaluate_prompt, 0.7)
             else:
                 evaluate_prompt = f"Question: {question}\n\nGenerate Response: {generate_response}"
-                evaluate_chat = TextAPI(evaluate_model_name, JUDGE_SYSTEM_PROMPT, evaluate_prompt, 0.7)
+                evaluate_chat = TextAPI(evaluate_model_name, DEFAULT_JUDGE_SYSTEM_PROMPT, evaluate_prompt, 0.7)
             
             evaluate_response = evaluate_chat.generate_response()
             result["evaluate_response"] = evaluate_response
@@ -136,7 +139,8 @@ def process_single_question(args):
     return idx, result
 
 def evaluate_llmjudge(dataset_name: str, generate_model_name: str, evaluate_model_name: str, 
-                     max_workers: int = 4, evaluate_mode: str = "start_from_beginning"):
+                     max_workers: int = 4, evaluate_mode: str = "start_from_beginning",
+                     question_limitation: int = 100):
     """
     评估LLM Judge
     
@@ -154,18 +158,18 @@ def evaluate_llmjudge(dataset_name: str, generate_model_name: str, evaluate_mode
     dataset = LLMJudgeBase(dataset_name)
     
     # 创建结果目录
-    result_dir = Path("results") / "LLMJudge"
+    result_dir = Path("results")
     result_dir.mkdir(parents=True, exist_ok=True)
     
     # 设置结果文件路径
-    result_file = result_dir / f"{dataset_name}_{generate_model_name}_{evaluate_model_name}_result.json"
-    score_file = result_dir / f"{dataset_name}_{generate_model_name}_{evaluate_model_name}_score.json"
+    result_file = result_dir / f"{dataset_name}_{generate_model_name}_result.json"
+    score_file = result_dir / f"{dataset_name}_{generate_model_name}_score.json"
     
     # 初始化或加载结果
     if evaluate_mode == "start_from_beginning" or not result_file.exists():
         # 从头开始评估：初始化所有问题的结果
         all_results = []
-        for question_number in range(len(dataset.questions)):
+        for question_number in range(question_limitation):
             questions = dataset.questions[question_number]
             answers = dataset.answers[question_number]
             
@@ -203,8 +207,23 @@ def evaluate_llmjudge(dataset_name: str, generate_model_name: str, evaluate_mode
             return evaluate_llmjudge(dataset_name, generate_model_name, evaluate_model_name, 
                                     max_workers, "start_from_beginning")
     
+    # 创建问题集进度条
+    total_question_sets = min(len(dataset.questions), question_limitation)
+    question_set_pbar = tqdm(
+        total=total_question_sets, 
+        desc=f"评估数据集 {dataset_name}", 
+        position=0,
+        leave=True
+    )
+    
+    # 记录已完成的问题集数量
+    completed_sets = 0
+    
     # 处理每个问题集
-    for question_number in range(len(dataset.questions)):
+    for question_number in range(question_limitation):
+        if question_number >= len(dataset.questions):
+            break
+            
         questions = dataset.questions[question_number]
         answers = dataset.answers[question_number]
         
@@ -236,18 +255,19 @@ def evaluate_llmjudge(dataset_name: str, generate_model_name: str, evaluate_mode
             reference_answer = answers[i] if answers is not None else None
             args_list.append((i, question, reference_answer, generate_model_name, evaluate_model_name, temperature))
         
-        # 如果没有需要处理的问题，跳过此问题集
+        # 如果没有需要处理的问题，跳过此问题集并更新进度条
         if not args_list:
-            print(f"问题集 {question_number} 已全部完成，跳过")
+            question_set_pbar.update(1)
+            completed_sets += 1
+            print(f"问题集 {question_number} 已全部完成，当前进度: {completed_sets}/{total_question_sets}")
             continue
         
-        # 并行处理问题
+        # 并行处理问题，不使用内部tqdm
         with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
             futures = {executor.submit(process_single_question, args): args[0] for args in args_list}
             
-            # 使用tqdm显示进度
-            for future in tqdm(concurrent.futures.as_completed(futures), total=len(futures), 
-                              desc=f"处理问题集 {question_number}"):
+            # 等待所有任务完成
+            for future in concurrent.futures.as_completed(futures):
                 idx, result = future.result()
                 
                 # 更新结果
@@ -255,6 +275,16 @@ def evaluate_llmjudge(dataset_name: str, generate_model_name: str, evaluate_mode
                 
                 # 每完成一题就更新结果文件
                 write_json_file(all_results, result_file)
+        
+        # 更新问题集进度条
+        question_set_pbar.update(1)
+        completed_sets += 1
+        
+        # 打印当前完成的问题集进度
+        print(f"完成问题集 {question_number}，当前进度: {completed_sets}/{total_question_sets}")
+    
+    # 关闭进度条
+    question_set_pbar.close()
     
     # 生成评分摘要
     generate_score_summary(all_results, score_file)

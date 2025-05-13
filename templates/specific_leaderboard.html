@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>分榜 - LLM评测平台</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        .leaderboard-section {
+            margin-bottom: 3rem;
+        }
+        .leaderboard-title {
+            margin-bottom: 1.5rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid #dee2e6;
+        }
+        .score-cell {
+            font-weight: bold;
+        }
+        .date-cell {
+            font-size: 0.85rem;
+            color: #6c757d;
+        }
+        .dataset-filter {
+            max-width: 350px;
+            margin-bottom: 2rem;
+        }
+        .dataset-description {
+            color: #6c757d;
+            margin-bottom: 1.5rem;
+        }
+        .last-update {
+            font-size: 0.85rem;
+            color: #6c757d;
+            margin-top: 1rem;
+            text-align: right;
+        }
+    </style>
+</head>
+<body>
+    <div class="container mt-4 mb-5">
+        <!-- 导航栏 -->
+        <nav class="navbar navbar-expand-lg navbar-light bg-light mb-4">
+            <div class="container-fluid">
+                <a class="navbar-brand" href="/">LLM评测平台</a>
+                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                    <span class="navbar-toggler-icon"></span>
+                </button>
+                <div class="collapse navbar-collapse" id="navbarNav">
+                    <ul class="navbar-nav">
+                        <li class="nav-item">
+                            <a class="nav-link" href="/">总榜</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link active" href="/specific_leaderboard">分榜</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/results">评测任务</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/create_task">创建任务</a>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </nav>
+        
+        <h1 class="mb-4">模型分榜</h1>
+        
+        <!-- 数据集选择下拉框 -->
+        <div class="dataset-filter">
+            <label for="dataset-select" class="form-label">选择评测数据集</label>
+            <select class="form-select" id="dataset-select">
+                <!-- 按类别分组的数据集 -->
+                <optgroup label="文本评测集">
+                    {% for dataset in dataset_categories.text %}
+                    <option value="{{ dataset }}" {% if loop.first %}selected{% endif %}>{{ dataset }}</option>
+                    {% endfor %}
+                </optgroup>
+                <optgroup label="多模态评测集">
+                    {% for dataset in dataset_categories.multimodal %}
+                    <option value="{{ dataset }}">{{ dataset }}</option>
+                    {% endfor %}
+                </optgroup>
+            </select>
+        </div>
+        
+        <!-- 数据集说明 -->
+        <div class="dataset-description" id="dataset-description"></div>
+        
+        <!-- 排行榜容器 -->
+        {% for dataset in datasets %}
+        <div class="leaderboard-section" id="leaderboard-{{ dataset }}" style="display: none;">
+            <h2 class="leaderboard-title">{{ dataset }} 排行榜</h2>
+            
+            {% if leaderboard[dataset] %}
+            <div class="table-responsive">
+                <table class="table table-striped table-hover">
+                    <thead>
+                        <tr>
+                            <th scope="col">#</th>
+                            <th scope="col">模型</th>
+                            <th scope="col">准确率</th>
+                            <th scope="col">评测日期</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in leaderboard[dataset] %}
+                        <tr>
+                            <td>{{ loop.index }}</td>
+                            <td>{{ item.model }}</td>
+                            <td class="score-cell">{{ "%.2f"|format(item.score * 100) }}%</td>
+                            <td class="date-cell">{{ item.date }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="alert alert-info">
+                <p class="mb-0">暂无评测数据。</p>
+            </div>
+            {% endif %}
+        </div>
+        {% endfor %}
+        
+        <div class="last-update">
+            最后更新时间: {{ last_update }}
+        </div>
+    </div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // 数据集描述
+            const datasetDescriptions = {{ dataset_descriptions|tojson }};
+            
+            // 获取元素
+            const datasetSelect = document.getElementById('dataset-select');
+            const datasetDescription = document.getElementById('dataset-description');
+            
+            // 初始化显示第一个评测集
+            updateLeaderboard(datasetSelect.value);
+            
+            // 监听下拉框变化
+            datasetSelect.addEventListener('change', function() {
+                updateLeaderboard(this.value);
+            });
+            
+            // 更新显示的排行榜
+            function updateLeaderboard(dataset) {
+                // 隐藏所有排行榜
+                document.querySelectorAll('.leaderboard-section').forEach(section => {
+                    section.style.display = 'none';
+                });
+                
+                // 显示选中的排行榜
+                const selectedLeaderboard = document.getElementById(`leaderboard-${dataset}`);
+                if (selectedLeaderboard) {
+                    selectedLeaderboard.style.display = 'block';
+                }
+                
+                // 更新描述
+                datasetDescription.textContent = datasetDescriptions[dataset] || '';
+            }
+        });
+    </script>
+</body>
+</html> 

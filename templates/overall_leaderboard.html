@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LLM评测平台 - 总榜</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.8.1/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        .sort-icon {
+            display: inline-block;
+            width: 1rem;
+            text-align: center;
+        }
+        
+        .table-hover tbody tr:hover {
+            background-color: rgba(0, 123, 255, 0.05);
+        }
+        
+        .model-name {
+            font-weight: 500;
+        }
+        
+        .average-score {
+            font-weight: bold;
+            color: #0d6efd;
+        }
+        
+        .dataset-score {
+            font-size: 0.95rem;
+        }
+        
+        .category-selector {
+            border-bottom: 1px solid #dee2e6;
+            margin-bottom: 1.5rem;
+        }
+        
+        .category-item {
+            font-weight: 500;
+            padding: 0.75rem 1rem;
+            cursor: pointer;
+            border-bottom: 3px solid transparent;
+        }
+        
+        .category-item.active {
+            border-bottom: 3px solid #0d6efd;
+            color: #0d6efd;
+        }
+        
+        .missing-data {
+            color: #ccc;
+            font-style: italic;
+        }
+        
+        .leaderboard-header {
+            margin-bottom: 2rem;
+        }
+        
+        .action-buttons {
+            margin: 1rem 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container mt-4">
+        <!-- 导航栏 -->
+        <nav class="navbar navbar-expand-lg navbar-light bg-light mb-4">
+            <div class="container-fluid">
+                <a class="navbar-brand" href="/">LLM评测平台</a>
+                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                    <span class="navbar-toggler-icon"></span>
+                </button>
+                <div class="collapse navbar-collapse" id="navbarNav">
+                    <ul class="navbar-nav">
+                        <li class="nav-item">
+                            <a class="nav-link active" href="/">总榜</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/specific_leaderboard">分榜</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/results">评测任务</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/create_task">创建任务</a>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </nav>
+        
+        <div class="leaderboard-header">
+            <h1 class="mb-3">LLM评测总榜</h1>
+            <p class="lead">展示各模型在不同类别评测集上的综合表现。点击表头可以排序，点击类别可以切换评测类别。</p>
+        </div>
+        
+        <!-- 类别选择器 -->
+        <div class="category-selector d-flex mb-4">
+            {% for category in categories %}
+            <div class="category-item {% if loop.first %}active{% endif %}" data-category="{{ category }}">
+                {{ category }}
+            </div>
+            {% endfor %}
+        </div>
+        
+        <div class="action-buttons">
+            <a href="/specific_leaderboard" class="btn btn-outline-primary">查看分榜</a>
+            <a href="/create_task" class="btn btn-primary ms-2">创建评测任务</a>
+        </div>
+        
+        <!-- 每个类别的榜单 -->
+        {% for category, datasets in categories.items() %}
+        <div class="leaderboard-table" id="leaderboard-{{ category }}" {% if not loop.first %}style="display:none"{% endif %}>
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th style="width: 5%">#</th>
+                            <th style="width: 25%">模型</th>
+                            <th style="width: 15%" class="sortable" data-sort="average">
+                                平均分
+                                <span class="sort-icon" data-sort="average" data-order="desc">
+                                    <i class="bi bi-caret-down-fill"></i>
+                                </span>
+                            </th>
+                            {% for dataset in datasets %}
+                            <th style="width: {{ 55 / datasets|length }}%" class="sortable" data-sort="{{ dataset }}">
+                                {{ dataset }}
+                                <span class="sort-icon" data-sort="{{ dataset }}" data-order="">
+                                    <i class="bi bi-dash"></i>
+                                </span>
+                            </th>
+                            {% endfor %}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- 表格内容将通过JavaScript填充 -->
+                        <tr>
+                            <td colspan="{{ 3 + datasets|length }}">
+                                <div class="text-center py-4">
+                                    <div class="spinner-border text-primary" role="status">
+                                        <span class="visually-hidden">加载中...</span>
+                                    </div>
+                                </div>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // 初始化变量
+            let currentCategory = document.querySelector('.category-item.active').dataset.category;
+            let currentSortBy = 'average';
+            let currentOrder = 'desc';
+            
+            // 加载排名数据
+            loadRankings();
+            
+            // 类别切换事件
+            document.querySelectorAll('.category-item').forEach(item => {
+                item.addEventListener('click', function() {
+                    // 更新UI
+                    document.querySelectorAll('.category-item').forEach(el => {
+                        el.classList.remove('active');
+                    });
+                    this.classList.add('active');
+                    
+                    // 隐藏所有表格
+                    document.querySelectorAll('.leaderboard-table').forEach(table => {
+                        table.style.display = 'none';
+                    });
+                    
+                    // 显示选中的表格
+                    currentCategory = this.dataset.category;
+                    document.getElementById('leaderboard-' + currentCategory).style.display = 'block';
+                    
+                    // 重置排序
+                    currentSortBy = 'average';
+                    currentOrder = 'desc';
+                    updateSortIcons();
+                    
+                    // 重新加载数据
+                    loadRankings();
+                });
+            });
+            
+            // 排序事件
+            document.querySelectorAll('.sortable').forEach(header => {
+                header.addEventListener('click', function() {
+                    const sortBy = this.dataset.sort;
+                    const sortIcon = this.querySelector('.sort-icon');
+                    
+                    // 更新排序顺序
+                    if (currentSortBy === sortBy) {
+                        // 切换同一列的排序顺序
+                        currentOrder = currentOrder === 'desc' ? 'asc' : 'desc';
+                    } else {
+                        // 切换到新列，默认降序
+                        currentSortBy = sortBy;
+                        currentOrder = 'desc';
+                    }
+                    
+                    // 更新排序图标
+                    updateSortIcons();
+                    
+                    // 重新加载数据
+                    loadRankings();
+                });
+            });
+            
+            function updateSortIcons() {
+                // 重置所有排序图标
+                document.querySelectorAll('.sort-icon').forEach(icon => {
+                    if (icon.dataset.sort === currentSortBy) {
+                        // 当前排序列
+                        if (currentOrder === 'desc') {
+                            icon.innerHTML = '<i class="bi bi-caret-down-fill"></i>';
+                        } else {
+                            icon.innerHTML = '<i class="bi bi-caret-up-fill"></i>';
+                        }
+                        icon.dataset.order = currentOrder;
+                    } else {
+                        // 非排序列
+                        icon.innerHTML = '<i class="bi bi-dash"></i>';
+                        icon.dataset.order = '';
+                    }
+                });
+            }
+            
+            function loadRankings() {
+                const tableBody = document.querySelector(`#leaderboard-${currentCategory} tbody`);
+                tableBody.innerHTML = `
+                    <tr>
+                        <td colspan="99">
+                            <div class="text-center py-4">
+                                <div class="spinner-border text-primary" role="status">
+                                    <span class="visually-hidden">加载中...</span>
+                                </div>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+                
+                // 请求数据
+                fetch(`/api/overall-rankings?category=${currentCategory}&sort_by=${currentSortBy}&order=${currentOrder}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        const rankings = data.rankings;
+                        const datasets = Array.from(document.querySelectorAll(`#leaderboard-${currentCategory} thead th.sortable`))
+                            .slice(1)  // 跳过平均分列
+                            .map(th => th.dataset.sort);
+                        
+                        if (rankings.length === 0) {
+                            tableBody.innerHTML = `
+                                <tr>
+                                    <td colspan="99" class="text-center py-4">
+                                        <p class="text-muted">暂无评测数据</p>
+                                    </td>
+                                </tr>
+                            `;
+                            return;
+                        }
+                        
+                        // 生成表格内容
+                        let html = '';
+                        rankings.forEach((item, index) => {
+                            html += `
+                                <tr>
+                                    <td>${index + 1}</td>
+                                    <td class="model-name">${item.model}</td>
+                                    <td class="average-score">${(item.average * 100).toFixed(2)}%</td>
+                            `;
+                            
+                            // 添加每个数据集的分数
+                            datasets.forEach(dataset => {
+                                if (dataset in item) {
+                                    html += `<td class="dataset-score">${(item[dataset] * 100).toFixed(2)}%</td>`;
+                                } else {
+                                    html += `<td class="missing-data">暂无数据</td>`;
+                                }
+                            });
+                            
+                            html += `</tr>`;
+                        });
+                        
+                        tableBody.innerHTML = html;
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        tableBody.innerHTML = `
+                            <tr>
+                                <td colspan="99" class="text-center py-4">
+                                    <p class="text-danger">加载数据出错</p>
+                                </td>
+                            </tr>
+                        `;
+                    });
+            }
+        });
+    </script>
+</body>
+</html> 

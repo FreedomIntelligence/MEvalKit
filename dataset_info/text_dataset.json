@@ -76,5 +76,33 @@
         "hint": {
 
         }
+    },
+    "MedEthicMatrix_MCQ": {
+        "language": "zh",
+        "question": {
+            "loading_way": "json",
+            "path": "data/knowledgeQA_2500/knowledgeQA_2500.json",
+            "key": "question",
+            "question_type_key": ""
+        },
+        "answer": {
+            "loading_way": "json",
+            "path": "data/knowledgeQA_2500/knowledgeQA_2500.json",
+            "key": "correct_answer",
+            "answer_type": "choice"
+        },
+        "choices": {
+            "loading_way": "json",
+            "path": "data/knowledgeQA_2500/knowledgeQA_2500.json",
+            "key": "options",
+            "sub_key": ["A", "B", "C", "D"]
+        },
+        "hint": {
+
+        }
+
+    },
+    "EthicsCase": {
+
     }
 }

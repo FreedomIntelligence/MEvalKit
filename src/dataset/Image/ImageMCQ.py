@@ -97,6 +97,11 @@ class ImageMCQ:
         for d in data:
             result.append(d[key])
         return result
+
+    def load_system_prompt(self):
+        s_info = self.dataset_info['system_prompt']
+        if s_info == {}:
+            return None
             
 
     

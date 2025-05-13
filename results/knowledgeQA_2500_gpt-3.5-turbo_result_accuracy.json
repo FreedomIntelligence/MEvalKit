@@ -1,6 +1,6 @@
 {
-    "accuracy": 0.32,
-    "correct_count": 32,
+    "accuracy": 0.51,
+    "correct_count": 51,
     "valid_count": 100,
     "total_count": 100,
     "neglected_count": 0,

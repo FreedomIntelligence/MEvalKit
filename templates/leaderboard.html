@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>模型评测排行榜 - LLM评测平台</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.8.1/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        .leaderboard-card {
+            margin-bottom: 2rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            border-radius: 0.5rem;
+            overflow: hidden;
+        }
+        .leaderboard-header {
+            background-color: #f8f9fa;
+            padding: 1rem;
+            border-bottom: 1px solid #dee2e6;
+        }
+        .leaderboard-title {
+            margin: 0;
+            font-size: 1.5rem;
+            color: #495057;
+        }
+        .leaderboard-description {
+            margin: 0.5rem 0 0;
+            color: #6c757d;
+            font-size: 0.9rem;
+        }
+        .score-gold {
+            background-color: #ffd700;
+            color: #212529;
+        }
+        .score-silver {
+            background-color: #c0c0c0;
+            color: #212529;
+        }
+        .score-bronze {
+            background-color: #cd7f32;
+            color: #fff;
+        }
+        .score-badge {
+            font-size: 1rem;
+            padding: 0.25rem 0.5rem;
+            border-radius: 0.25rem;
+        }
+        .update-info {
+            text-align: right;
+            color: #6c757d;
+            font-size: 0.85rem;
+            margin: 1rem 0;
+        }
+        .nav-link.active {
+            font-weight: bold;
+        }
+        .first-place {
+            font-weight: bold;
+        }
+        .model-date {
+            font-size: 0.85rem;
+            color: #6c757d;
+        }
+        .dataset-selector {
+            margin-bottom: 1.5rem;
+        }
+        .sortable-header {
+            cursor: pointer;
+            position: relative;
+            padding-right: 20px;
+        }
+        .sortable-header:hover {
+            background-color: rgba(0,0,0,0.05);
+        }
+        .sort-icon {
+            position: absolute;
+            right: 5px;
+            top: 50%;
+            transform: translateY(-50%);
+        }
+        .search-box {
+            position: relative;
+        }
+        .search-box .form-control {
+            padding-left: 35px;
+        }
+        .search-icon {
+            position: absolute;
+            left: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #6c757d;
+        }
+        .hidden-row {
+            display: none;
+        }
+        .no-results {
+            display: none;
+            padding: 20px;
+            text-align: center;
+            color: #6c757d;
+        }
+        .selector-group {
+            margin-bottom: 1rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container mt-4">
+        <!-- 导航栏 -->
+        <nav class="navbar navbar-expand-lg navbar-light bg-light mb-4">
+            <div class="container-fluid">
+                <a class="navbar-brand" href="/">MEvalKit</a>
+                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                    <span class="navbar-toggler-icon"></span>
+                </button>
+                <div class="collapse navbar-collapse" id="navbarNav">
+                    <ul class="navbar-nav">
+                        <li class="nav-item">
+                            <a class="nav-link" href="/">主页</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link active" href="/leaderboard">排行榜</a>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </nav>
+        
+        <h1 class="mb-4">模型评测排行榜</h1>
+        
+        <!-- 评测集类别和评测集选择器 -->
+        <div class="row dataset-selector align-items-center">
+            <div class="col-md-8">
+                <div class="row">
+                    <!-- 评测集类别选择器 -->
+                    <div class="col-md-6 selector-group">
+                        <div class="input-group">
+                            <label class="input-group-text" for="categorySelect">评测集类别:</label>
+                            <select class="form-select" id="categorySelect">
+                                <option value="text" selected>纯文本评测</option>
+                                <option value="multimodal">多模态评测</option>
+                            </select>
+                        </div>
+                    </div>
+                    <!-- 评测集选择器 -->
+                    <div class="col-md-6 selector-group">
+                        <div class="input-group">
+                            <label class="input-group-text" for="datasetSelect">评测集:</label>
+                            <select class="form-select" id="datasetSelect">
+                                <!-- 默认显示文本评测集 -->
+                                <option value="MMLU" selected data-category="text">MMLU - 多任务语言理解基准</option>
+                                <option value="CMB" data-category="text">CMB - 中文医学知识基准</option>
+                                <option value="GPQA" data-category="text">GPQA - 通用物理问答基准</option>
+                                <option value="MMStar" data-category="multimodal" style="display:none">MMStar - 多模态评估基准</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 模型搜索框 -->
+            <div class="col-md-4">
+                <div class="search-box">
+                    <span class="search-icon"><i class="bi bi-search"></i></span>
+                    <input type="text" class="form-control" id="modelSearch" placeholder="搜索模型...">
+                </div>
+            </div>
+            
+            <!-- 更新时间信息 -->
+            <div class="col-12 mt-2">
+                <p class="update-info">最后更新时间: {{ last_update }}</p>
+            </div>
+        </div>
+        
+        <!-- 数据集排行榜 -->
+        <div class="row">
+            <div class="col-md-10 mx-auto">
+                {% for dataset in datasets %}
+                    <div id="leaderboard-{{ dataset }}" class="leaderboard-card" style="display: {% if dataset == 'MMLU' %}block{% else %}none{% endif %};">
+                        <div class="leaderboard-header">
+                            <h2 class="leaderboard-title">{{ dataset }}</h2>
+                            <p class="leaderboard-description">{{ dataset_descriptions[dataset] }}</p>
+                        </div>
+                        <div class="table-responsive">
+                            <table class="table table-hover table-striped mb-0">
+                                <thead>
+                                    <tr>
+                                        <th width="15%" class="sortable-header" data-sort="rank">
+                                            排名 <i class="bi bi-arrow-down-up sort-icon"></i>
+                                        </th>
+                                        <th width="40%" class="sortable-header" data-sort="model">
+                                            模型 <i class="bi bi-arrow-down-up sort-icon"></i>
+                                        </th>
+                                        <th width="25%" class="sortable-header" data-sort="score">
+                                            分数 <i class="bi bi-arrow-down-up sort-icon"></i>
+                                        </th>
+                                        <th width="20%" class="sortable-header" data-sort="date">
+                                            更新时间 <i class="bi bi-arrow-down-up sort-icon"></i>
+                                        </th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% if leaderboard[dataset]|length > 0 %}
+                                        {% for item in leaderboard[dataset] %}
+                                        <tr class="{{ 'first-place' if loop.index == 1 }}" data-rank="{{ loop.index }}">
+                                            <td>
+                                                {% if loop.index == 1 %}
+                                                    <span class="badge score-gold">🥇 1</span>
+                                                {% elif loop.index == 2 %}
+                                                    <span class="badge score-silver">🥈 2</span>
+                                                {% elif loop.index == 3 %}
+                                                    <span class="badge score-bronze">🥉 3</span>
+                                                {% else %}
+                                                    {{ loop.index }}
+                                                {% endif %}
+                                            </td>
+                                            <td>{{ item.model }}</td>
+                                            <td data-value="{{ item.score }}">{{ "%.2f"|format(item.score * 100) }}%</td>
+                                            <td class="model-date" data-value="{{ item.timestamp }}">{{ item.date }}</td>
+                                        </tr>
+                                        {% endfor %}
+                                    {% else %}
+                                        <tr class="no-data-row">
+                                            <td colspan="4" class="text-center">暂无评测数据</td>
+                                        </tr>
+                                    {% endif %}
+                                </tbody>
+                            </table>
+                            <!-- 无搜索结果提示 -->
+                            <div class="no-results">
+                                <p><i class="bi bi-exclamation-circle"></i> 没有找到匹配的模型</p>
+                            </div>
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // 处理评测集类别切换
+            document.getElementById('categorySelect').addEventListener('change', function() {
+                const selectedCategory = this.value;
+                const datasetSelect = document.getElementById('datasetSelect');
+                const options = datasetSelect.querySelectorAll('option');
+                
+                // 重置数据集选择器
+                let firstMatchingOption = null;
+                
+                // 根据类别筛选选项
+                options.forEach(option => {
+                    const optionCategory = option.getAttribute('data-category');
+                    if (optionCategory === selectedCategory) {
+                        option.style.display = '';
+                        if (!firstMatchingOption) {
+                            firstMatchingOption = option;
+                        }
+                    } else {
+                        option.style.display = 'none';
+                        option.selected = false;
+                    }
+                });
+                
+                // 选择第一个匹配的选项
+                if (firstMatchingOption) {
+                    firstMatchingOption.selected = true;
+                    
+                    // 更新显示的排行榜
+                    const selectedDataset = firstMatchingOption.value;
+                    switchLeaderboard(selectedDataset);
+                }
+            });
+            
+            // 处理评测集切换
+            document.getElementById('datasetSelect').addEventListener('change', function() {
+                const selectedDataset = this.value;
+                switchLeaderboard(selectedDataset);
+            });
+            
+            // 切换排行榜显示
+            function switchLeaderboard(dataset) {
+                // 隐藏所有排行榜
+                document.querySelectorAll('[id^="leaderboard-"]').forEach(function(element) {
+                    element.style.display = 'none';
+                });
+                
+                // 显示选中的排行榜
+                const targetLeaderboard = document.getElementById('leaderboard-' + dataset);
+                if (targetLeaderboard) {
+                    targetLeaderboard.style.display = 'block';
+                }
+                
+                // 清除搜索框
+                document.getElementById('modelSearch').value = '';
+                performSearch('');
+            }
+            
+            // 模型名称搜索功能
+            document.getElementById('modelSearch').addEventListener('input', function() {
+                const searchTerm = this.value.toLowerCase().trim();
+                performSearch(searchTerm);
+            });
+            
+            function performSearch(searchTerm) {
+                const selectedDataset = document.getElementById('datasetSelect').value;
+                const table = document.querySelector(`#leaderboard-${selectedDataset} table`);
+                const rows = table.querySelectorAll('tbody tr:not(.no-data-row)');
+                let visibleCount = 0;
+                
+                rows.forEach(row => {
+                    const modelName = row.cells[1].textContent.toLowerCase();
+                    if (modelName.includes(searchTerm)) {
+                        row.classList.remove('hidden-row');
+                        visibleCount++;
+                    } else {
+                        row.classList.add('hidden-row');
+                    }
+                });
+                
+                // 显示或隐藏"无结果"信息
+                const noResults = document.querySelector(`#leaderboard-${selectedDataset} .no-results`);
+                if (visibleCount === 0 && rows.length > 0) {
+                    noResults.style.display = 'block';
+                } else {
+                    noResults.style.display = 'none';
+                }
+            }
+            
+            // 表格排序功能
+            document.querySelectorAll('.sortable-header').forEach(header => {
+                header.addEventListener('click', function() {
+                    const sortField = this.getAttribute('data-sort');
+                    const selectedDataset = document.getElementById('datasetSelect').value;
+                    const table = document.querySelector(`#leaderboard-${selectedDataset} table`);
+                    const tbody = table.querySelector('tbody');
+                    const rows = Array.from(tbody.querySelectorAll('tr:not(.no-data-row)'));
+                    
+                    // 判断是否反向排序
+                    let isDescending = this.classList.contains('sort-desc');
+                    
+                    // 更新所有表头的状态
+                    document.querySelectorAll(`#leaderboard-${selectedDataset} .sortable-header`).forEach(h => {
+                        h.classList.remove('sort-asc', 'sort-desc');
+                        h.querySelector('.sort-icon').className = 'bi bi-arrow-down-up sort-icon';
+                    });
+                    
+                    // 更新当前表头的状态
+                    if (!isDescending) {
+                        this.classList.add('sort-desc');
+                        this.querySelector('.sort-icon').className = 'bi bi-sort-down sort-icon';
+                    } else {
+                        this.classList.add('sort-asc');
+                        this.querySelector('.sort-icon').className = 'bi bi-sort-up sort-icon';
+                    }
+                    
+                    // 排序逻辑
+                    rows.sort((a, b) => {
+                        let valueA, valueB;
+                        
+                        if (sortField === 'rank') {
+                            valueA = parseInt(a.getAttribute('data-rank'));
+                            valueB = parseInt(b.getAttribute('data-rank'));
+                        } else if (sortField === 'model') {
+                            valueA = a.cells[1].textContent.toLowerCase();
+                            valueB = b.cells[1].textContent.toLowerCase();
+                        } else if (sortField === 'score') {
+                            valueA = parseFloat(a.cells[2].getAttribute('data-value'));
+                            valueB = parseFloat(b.cells[2].getAttribute('data-value'));
+                        } else if (sortField === 'date') {
+                            valueA = a.cells[3].getAttribute('data-value');
+                            valueB = b.cells[3].getAttribute('data-value');
+                        }
+                        
+                        if (valueA < valueB) return isDescending ? 1 : -1;
+                        if (valueA > valueB) return isDescending ? -1 : 1;
+                        return 0;
+                    });
+                    
+                    // 重新应用样式（金银铜牌）
+                    rows.forEach((row, index) => {
+                        row.classList.remove('first-place');
+                        
+                        const rankCell = row.cells[0];
+                        let rankContent;
+                        
+                        if (index === 0) {
+                            row.classList.add('first-place');
+                            rankContent = '<span class="badge score-gold">🥇 1</span>';
+                        } else if (index === 1) {
+                            rankContent = '<span class="badge score-silver">🥈 2</span>';
+                        } else if (index === 2) {
+                            rankContent = '<span class="badge score-bronze">🥉 3</span>';
+                        } else {
+                            rankContent = `${index + 1}`;
+                        }
+                        
+                        rankCell.innerHTML = rankContent;
+                        row.setAttribute('data-rank', index + 1);
+                    });
+                    
+                    // 更新DOM
+                    rows.forEach(row => tbody.appendChild(row));
+                    
+                    // 重新应用搜索过滤
+                    const searchTerm = document.getElementById('modelSearch').value.toLowerCase().trim();
+                    if (searchTerm) {
+                        performSearch(searchTerm);
+                    }
+                });
+            });
+            
+            // 每5分钟自动刷新页面
+            setTimeout(function() {
+                window.location.reload();
+            }, 5 * 60 * 1000);
+        });
+    </script>
+</body>
+</html> 

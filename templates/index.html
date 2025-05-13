@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LLM评测平台</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container mt-4">
+        <!-- 导航栏 -->
+        <nav class="navbar navbar-expand-lg navbar-light bg-light mb-4">
+            <div class="container-fluid">
+                <a class="navbar-brand" href="/">MEvalKit</a>
+                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                    <span class="navbar-toggler-icon"></span>
+                </button>
+                <div class="collapse navbar-collapse" id="navbarNav">
+                    <ul class="navbar-nav">
+                        <li class="nav-item">
+                            <a class="nav-link active" href="/">主页</a>
+                        </li>
+                        
+                        <li class="nav-item">
+                            <a class="nav-link" href="/leaderboard">排行榜</a>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </nav>
+        
+        
+        <div class="card shadow-sm">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">运行新评测</h5>
+            </div>
+            <div class="card-body">
+                <form id="evaluationForm" action="/run-evaluation" method="post">
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="datasetSelect" class="form-label">选择评测集</label>
+                            <select class="form-select" id="datasetSelect" name="dataset" required>
+                                <option value="" selected disabled>请选择评测集</option>
+                                {% for dataset_name, dataset_info in datasets.items() %}
+                                <option value="{{ dataset_name }}" data-type="{{ dataset_info.type }}">
+                                    {{ dataset_name }} - {{ dataset_info.description }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                            <small class="form-text text-muted">选择要评测的数据集</small>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <label for="modelSelect" class="form-label">选择待评测模型</label>
+                            <select class="form-select" id="modelSelect" name="model" required>
+                                <option value="" selected disabled>请选择模型</option>
+                                {% for model in models %}
+                                <option value="{{ model }}">{{ model }}</option>
+                                {% endfor %}
+                            </select>
+                            <small class="form-text text-muted">选择要评测的模型</small>
+                        </div>
+                    </div>
+                    
+                    <!-- 判别模型选择（仅在选择LLMJudge类型数据集时显示） -->
+                    <div class="row mb-3" id="judgmentModelRow" style="display: none;">
+                        <div class="col-md-6">
+                            <label for="judgmentModelSelect" class="form-label">选择判别模型</label>
+                            <select class="form-select" id="judgmentModelSelect" name="judgment_model">
+                                <option value="" selected disabled>请选择判别模型</option>
+                                {% for model in judgment_models %}
+                                <option value="{{ model }}">{{ model }}</option>
+                                {% endfor %}
+                            </select>
+                            <small class="form-text text-muted">选择用于评判的模型（仅LLMJudge类型需要）</small>
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label">选择评测模式</label>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="eval_mode" id="evalModeStart" value="start_from_beginning" checked>
+                                <label class="form-check-label" for="evalModeStart">
+                                    从头开始
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="eval_mode" id="evalModeResume" value="resume_from_checkpoint">
+                                <label class="form-check-label" for="evalModeResume">
+                                    断点续评
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="text-center">
+                        <button type="submit" class="btn btn-primary" id="runButton">
+                            运行评测
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        
+        
+    </div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // 获取表单元素
+            const evaluationForm = document.getElementById('evaluationForm');
+            const datasetSelect = document.getElementById('datasetSelect');
+            const judgmentModelRow = document.getElementById('judgmentModelRow');
+            const judgmentModelSelect = document.getElementById('judgmentModelSelect');
+            const runButton = document.getElementById('runButton');
+            
+            // 当数据集选择变化时
+            datasetSelect.addEventListener('change', function() {
+                const selectedOption = this.options[this.selectedIndex];
+                const datasetType = selectedOption.getAttribute('data-type');
+                
+                // 如果是LLMJudge类型，显示判别模型选择
+                if (datasetType === 'llmjudge') {
+                    judgmentModelRow.style.display = 'block';
+                    judgmentModelSelect.required = true;
+                } else {
+                    judgmentModelRow.style.display = 'none';
+                    judgmentModelSelect.required = false;
+                    judgmentModelSelect.value = ''; // 清空选择
+                }
+            });
+            
+            // 表单提交前验证
+            evaluationForm.addEventListener('submit', function(e) {
+                const selectedOption = datasetSelect.options[datasetSelect.selectedIndex];
+                if (!selectedOption) return;
+                
+                const datasetType = selectedOption.getAttribute('data-type');
+                
+                // 如果是LLMJudge类型，检查是否选择了判别模型
+                if (datasetType === 'llmjudge' && !judgmentModelSelect.value) {
+                    e.preventDefault();
+                    alert('请选择判别模型');
+                    return;
+                }
+                
+                // 显示加载状态
+                runButton.disabled = true;
+                runButton.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> 正在启动评测...';
+            });
+        });
+    </script>
+</body>
+</html>
+

@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>任务详情 - LLM评测平台</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        .status-badge {
+            font-size: 1rem;
+            padding: 0.5rem 0.75rem;
+        }
+        .progress-container {
+            margin-bottom: 1rem;
+        }
+        .progress-label {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 0.5rem;
+        }
+        .progress {
+            height: 1.5rem;
+            border-radius: 0.25rem;
+            overflow: hidden;
+            background-color: #e9ecef;
+        }
+        .progress-bar {
+            font-size: 0.9rem;
+            line-height: 1.5rem;
+            transition: width 0.3s ease;
+        }
+        .phase-indicator {
+            display: flex;
+            margin-bottom: 1.5rem;
+        }
+        .phase-step {
+            flex: 1;
+            text-align: center;
+            position: relative;
+        }
+        .phase-step::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            right: 0;
+            width: 100%;
+            height: 2px;
+            background-color: #dee2e6;
+            z-index: 1;
+        }
+        .phase-step:last-child::after {
+            display: none;
+        }
+        .phase-circle {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background-color: #f8f9fa;
+            border: 2px solid #dee2e6;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 10px;
+            position: relative;
+            z-index: 2;
+        }
+        .phase-active .phase-circle {
+            background-color: #0d6efd;
+            border-color: #0d6efd;
+            color: white;
+        }
+        .phase-completed .phase-circle {
+            background-color: #198754;
+            border-color: #198754;
+            color: white;
+        }
+        /* tqdm风格进度条 */
+        .tqdm-container {
+            font-family: monospace;
+            margin-bottom: 1rem;
+            background-color: #f8f9fa;
+            padding: 0.75rem;
+            border-radius: 0.25rem;
+            border: 1px solid #dee2e6;
+        }
+        .tqdm-bar {
+            display: flex;
+            align-items: center;
+            margin-bottom: 0.5rem;
+        }
+        .tqdm-progress {
+            flex-grow: 1;
+            height: 20px;
+            background-color: #e9ecef;
+            border-radius: 4px;
+            overflow: hidden;
+            margin: 0 10px;
+            position: relative;
+        }
+        .tqdm-fill {
+            height: 100%;
+            background-color: #0d6efd;
+            transition: width 0.5s ease;
+            width: 0%;
+        }
+        .tqdm-stats {
+            display: flex;
+            justify-content: space-between;
+            color: #6c757d;
+            font-size: 0.9rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container mt-4">
+        <!-- 导航栏 -->
+        <nav class="navbar navbar-expand-lg navbar-light bg-light mb-4">
+            <div class="container-fluid">
+                <a class="navbar-brand" href="/">LLM评测平台</a>
+                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                    <span class="navbar-toggler-icon"></span>
+                </button>
+                <div class="collapse navbar-collapse" id="navbarNav">
+                    <ul class="navbar-nav">
+                        <li class="nav-item">
+                            <a class="nav-link" href="/">总榜</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/specific-leaderboard">分榜</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link active" href="/results">评测任务</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/create-task">创建任务</a>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </nav>
+        
+        <h1 class="mb-4">任务详情</h1>
+        
+        <div class="card mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0">任务信息</h5>
+                <span id="taskStatusBadge" class="badge rounded-pill status-badge 
+                    {% if task.status == 'pending' %}bg-secondary
+                    {% elif task.status == 'running' %}bg-primary
+                    {% elif task.status == 'evaluation_complete' %}bg-info
+                    {% elif task.status == 'completed' %}bg-success
+                    {% elif task.status == 'incomplete' %}bg-warning
+                    {% elif task.status == 'failed' %}bg-danger
+                    {% else %}bg-secondary{% endif %}">
+                    {% if task.status == 'pending' %}准备中
+                    {% elif task.status == 'running' %}评测中
+                    {% elif task.status == 'evaluation_complete' %}评测流程完成
+                    {% elif task.status == 'completed' %}已完成 (≥95%)
+                    {% elif task.status == 'incomplete' %}未完成 (<95%)
+                    {% elif task.status == 'failed' %}失败
+                    {% else %}未知状态{% endif %}
+                </span>
+            </div>
+            <div class="card-body">
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <p><strong>任务ID:</strong> {{ task.id }}</p>
+                        <p><strong>数据集:</strong> {{ task.dataset }}</p>
+                        <p><strong>开始时间:</strong> {{ task.created_at|timestamp_to_date }}</p>
+                    </div>
+                    <div class="col-md-6">
+                        <p><strong>模型:</strong> {{ task.model }}</p>
+                        <p><strong>评估模式:</strong> {{ task.eval_mode }}</p>
+                        {% if task.judgment_model %}
+                        <p><strong>判别模型:</strong> {{ task.judgment_model }}</p>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <!-- 阶段指示器 -->
+                <div class="phase-indicator">
+                    <div id="phasePrep" class="phase-step {% if task.status != 'pending' %}phase-completed{% endif %}">
+                        <div class="phase-circle">1</div>
+                        <div class="phase-label">准备</div>
+                    </div>
+                    <div id="phaseEval" class="phase-step {% if task.status == 'running' %}phase-active{% elif task.status != 'pending' %}phase-completed{% endif %}">
+                        <div class="phase-circle">2</div>
+                        <div class="phase-label">评测</div>
+                    </div>
+                    <div id="phaseComplete" class="phase-step {% if task.status in ['completed', 'incomplete'] %}phase-completed{% elif task.status == 'evaluation_complete' %}phase-active{% endif %}">
+                        <div class="phase-circle">3</div>
+                        <div class="phase-label">完成</div>
+                    </div>
+                </div>
+                
+                <!-- tqdm风格进度条 -->
+                <div class="tqdm-container">
+                    <div class="tqdm-bar">
+                        <span id="tqdmPercent">0%</span>
+                        <div class="tqdm-progress">
+                            <div id="tqdmFill" class="tqdm-fill" style="width: {{ task.progress }}%;"></div>
+                        </div>
+                        <span id="tqdmFraction">{{ task.completed_questions }}/{{ task.total_questions }}</span>
+                    </div>
+                    <div class="tqdm-stats">
+                        <span id="tqdmElapsed">已用时间: 00:00</span>
+                        <span id="tqdmRemaining">预计剩余: --:--</span>
+                        <span id="tqdmSpeed">速度: 0.00 it/s</span>
+                    </div>
+                </div>
+                
+                <!-- 完成率进度条，仅在评测流程完成后显示 -->
+                <div id="completionContainer" class="progress-container mt-4" style="display: none;">
+                    <div class="progress-label">
+                        <span>完成率</span>
+                        <span id="completionPercent">0%</span>
+                    </div>
+                    <div class="progress">
+                        <div id="completionProgress" class="progress-bar bg-success" role="progressbar" 
+                             style="width: 0%;" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">0%</div>
+                    </div>
+                    <p id="completionDetail" class="text-muted mt-1">已完成: 0 / 0 题</p>
+                </div>
+
+                <!-- 评测结果显示区域 - 简化版 -->
+                <div id="evaluationResults" class="mt-4" style="display: none;">
+                    <h5 class="mb-3">评测结果</h5>
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <p><strong>评测状态:</strong> <span id="evaluationStatus" class="badge rounded-pill"></span></p>
+                                </div>
+                                <div class="col-md-6">
+                                    <p id="accuracyContainer"><strong>准确率:</strong> <span id="accuracy">-</span></p>
+                                    <p id="retryMessage" style="display: none;" class="text-danger">请再次进行评测</p>
+                                </div>
+                            </div>
+                            <!-- 添加返回首页按钮 -->
+                            <div class="text-center mt-3">
+                                <a href="/" class="btn btn-primary">返回首页</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const taskId = "{{ task.id }}";
+            const taskStatusBadge = document.getElementById('taskStatusBadge');
+            const completionContainer = document.getElementById('completionContainer');
+            const completionProgress = document.getElementById('completionProgress');
+            const completionPercent = document.getElementById('completionPercent');
+            const completionDetail = document.getElementById('completionDetail');
+            
+            // tqdm风格进度条元素
+            const tqdmPercent = document.getElementById('tqdmPercent');
+            const tqdmFill = document.getElementById('tqdmFill');
+            const tqdmFraction = document.getElementById('tqdmFraction');
+            const tqdmElapsed = document.getElementById('tqdmElapsed');
+            const tqdmRemaining = document.getElementById('tqdmRemaining');
+            const tqdmSpeed = document.getElementById('tqdmSpeed');
+            
+            // 阶段指示器
+            const phasePrep = document.getElementById('phasePrep');
+            const phaseEval = document.getElementById('phaseEval');
+            const phaseComplete = document.getElementById('phaseComplete');
+            
+            let lastProgress = 0;
+            let startTime = new Date();
+            let progressHistory = [];
+            
+            // 更新状态徽章
+            function updateStatusBadge(status) {
+                taskStatusBadge.textContent = getStatusText(status);
+                taskStatusBadge.className = `badge rounded-pill status-badge ${getStatusClass(status)}`;
+            }
+            
+            // 获取状态文本
+            function getStatusText(status) {
+                switch(status) {
+                    case 'pending': return '准备中';
+                    case 'running': return '评测中';
+                    case 'evaluation_complete': return '评测流程完成';
+                    case 'completed': return '已完成 (≥95%)';
+                    case 'incomplete': return '未完成 (<95%)';
+                    case 'failed': return '失败';
+                    default: return '未知状态';
+                }
+            }
+            
+            // 获取状态类
+            function getStatusClass(status) {
+                switch(status) {
+                    case 'pending': return 'bg-secondary';
+                    case 'running': return 'bg-primary';
+                    case 'evaluation_complete': return 'bg-info';
+                    case 'completed': return 'bg-success';
+                    case 'incomplete': return 'bg-warning';
+                    case 'failed': return 'bg-danger';
+                    default: return 'bg-secondary';
+                }
+            }
+            
+            // 更新阶段指示器
+            function updatePhaseIndicator(status, evaluationComplete) {
+                // 重置所有阶段
+                phasePrep.className = 'phase-step';
+                phaseEval.className = 'phase-step';
+                phaseComplete.className = 'phase-step';
+                
+                // 更新阶段状态
+                if (status !== 'pending') {
+                    phasePrep.className = 'phase-step phase-completed';
+                    
+                    if (status === 'running') {
+                        phaseEval.className = 'phase-step phase-active';
+                    } else if (status !== 'pending') {
+                        phaseEval.className = 'phase-step phase-completed';
+                        
+                        if (status === 'evaluation_complete') {
+                            phaseComplete.className = 'phase-step phase-active';
+                        } else if (status === 'completed' || status === 'incomplete') {
+                            phaseComplete.className = 'phase-step phase-completed';
+                        }
+                    }
+                }
+            }
+            
+            // 计算已用时间
+            function calculateElapsedTime() {
+                const now = new Date();
+                const elapsedMs = now - startTime;
+                const elapsedSecs = Math.floor(elapsedMs / 1000);
+                const minutes = Math.floor(elapsedSecs / 60);
+                const seconds = elapsedSecs % 60;
+                return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+            }
+            
+            // 计算预计剩余时间
+            function calculateETA(progress) {
+                if (progress < 1 || progressHistory.length < 2) {
+                    return "--:--";
+                }
+                
+                const now = new Date();
+                const first = progressHistory[0];
+                const elapsedMs = now - first.time;
+                const progressDiff = progress - first.progress;
+                
+                if (progressDiff <= 0) {
+                    return "--:--";
+                }
+                
+                const msPerPercent = elapsedMs / progressDiff;
+                const remainingMs = msPerPercent * (100 - progress);
+                const remainingSecs = Math.floor(remainingMs / 1000);
+                
+                if (remainingSecs < 0 || !isFinite(remainingSecs)) {
+                    return "--:--";
+                }
+                
+                const minutes = Math.floor(remainingSecs / 60);
+                const seconds = remainingSecs % 60;
+                return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+            }
+            
+            // 计算处理速度
+            function calculateSpeed(progress, completed) {
+                if (progressHistory.length < 2) {
+                    return "0.00 it/s";
+                }
+                
+                const first = progressHistory[0];
+                const last = progressHistory[progressHistory.length - 1];
+                const timeDiffMs = last.time - first.time;
+                const timeDiffSecs = timeDiffMs / 1000;
+                
+                if (timeDiffSecs < 0.1) {
+                    return "0.00 it/s";
+                }
+                
+                // 估算总数
+                const total = Math.round(completed * (100 / progress));
+                const completedDiff = (last.progress - first.progress) * total / 100;
+                const speed = completedDiff / timeDiffSecs;
+                
+                return `${speed.toFixed(2)} it/s`;
+            }
+            
+            // 定期检查任务状态
+            function checkTaskStatus() {
+                fetch(`/task-status/${taskId}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        // 更新状态徽章
+                        updateStatusBadge(data.status);
+                        
+                        // 更新阶段指示器
+                        updatePhaseIndicator(data.status, data.evaluation_complete);
+                        
+                        // 更新tqdm风格进度条
+                        const progressValue = data.progress || 0;
+                        if (progressValue > lastProgress) {
+                            // 记录进度历史
+                            progressHistory.push({
+                                time: new Date(),
+                                progress: progressValue,
+                                completed: data.completed_questions
+                            });
+                            
+                            // 只保留最近的20个记录
+                            if (progressHistory.length > 20) {
+                                progressHistory.shift();
+                            }
+                            
+                            lastProgress = progressValue;
+                        }
+                        
+                        tqdmFill.style.width = `${progressValue}%`;
+                        tqdmPercent.textContent = `${Math.round(progressValue)}%`;
+                        
+                        if (data.total_questions > 0) {
+                            tqdmFraction.textContent = `${data.completed_questions}/${data.total_questions}`;
+                            
+                            // 更新统计信息
+                            tqdmElapsed.textContent = `已用时间: ${calculateElapsedTime()}`;
+                            tqdmRemaining.textContent = `预计剩余: ${calculateETA(progressValue)}`;
+                            tqdmSpeed.textContent = `速度: ${calculateSpeed(progressValue, data.completed_questions)}`;
+                        }
+                        
+                        // 如果评测流程完成，显示完成率进度条
+                        if (data.evaluation_complete) {
+                            completionContainer.style.display = 'block';
+                            
+                            // 如果有完成率信息，更新完成率进度条
+                            if (data.valid_questions !== undefined && data.total_questions !== undefined) {
+                                const percent = Math.round(data.valid_questions / data.total_questions * 100);
+                                completionProgress.style.width = `${percent}%`;
+                                completionProgress.textContent = `${percent}%`;
+                                completionProgress.setAttribute('aria-valuenow', percent);
+                                completionPercent.textContent = `${percent}%`;
+                                
+                                // 更新完成题数
+                                completionDetail.textContent = `已完成: ${data.valid_questions} / ${data.total_questions} 题`;
+                                
+                                // 如果完成率低于95%，改变进度条颜色
+                                if (percent < 95) {
+                                    completionProgress.classList.remove('bg-success');
+                                    completionProgress.classList.add('bg-warning');
+                                }
+                            }
+                        }
+                        
+                        // 处理评测结果（当状态为completed或incomplete时）
+                        if (data.status === 'completed' || data.status === 'incomplete') {
+                            // 显示评测结果区域
+                            const evaluationResults = document.getElementById('evaluationResults');
+                            if (evaluationResults) {
+                                evaluationResults.style.display = 'block';
+                                
+                                const evaluationStatus = document.getElementById('evaluationStatus');
+                                const accuracyContainer = document.getElementById('accuracyContainer');
+                                const retryMessage = document.getElementById('retryMessage');
+                                const accuracy = document.getElementById('accuracy');
+                                
+                                if (data.is_valid_evaluation) {
+                                    evaluationStatus.textContent = '有效';
+                                    evaluationStatus.className = 'badge rounded-pill bg-success';
+                                    accuracyContainer.style.display = 'block';
+                                    retryMessage.style.display = 'none';
+                                    accuracy.textContent = `${(data.score).toFixed(2)}`;
+                                } else {
+                                    evaluationStatus.textContent = '无效';
+                                    evaluationStatus.className = 'badge rounded-pill bg-danger';
+                                    accuracyContainer.style.display = 'none';
+                                    retryMessage.style.display = 'block';
+                                }
+                            }
+                        }
+                        
+                        // 如果任务仍在运行，继续检查
+                        if (data.status === 'running' || data.status === 'pending' || data.status === 'evaluation_complete') {
+                            setTimeout(checkTaskStatus, 1000);  // 每秒检查一次
+                        }
+                    })
+                    .catch(error => {
+                        console.error('检查任务状态出错:', error);
+                        setTimeout(checkTaskStatus, 5000);  // 出错后5秒再试
+                    });
+            }
+            
+            // 开始检查任务状态
+            checkTaskStatus();
+        });
+    </script>
+</body>
+</html>

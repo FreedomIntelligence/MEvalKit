@@ -57,8 +57,8 @@ MT-Bench等。
 ### 安装
 
 ```bash
-git clone git@github.com:FreedomIntelligence/WindaEvalKit.git
-cd WindaEvalKit
+git clone git@github.com:FreedomIntelligence/MEvalKit.git
+cd MEvalKit
 pip install -e .
 pip install -r requirements.txt
 ```

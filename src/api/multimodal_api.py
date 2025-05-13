@@ -106,6 +106,7 @@ class MultimodalAPI:
             response_data = response.json()
             #print(response_data)
             if 'error' in response_data:
+                print(response_data)
                 return "Neglected"
             else:
                 return response_data['choices'][0]['message']['content']

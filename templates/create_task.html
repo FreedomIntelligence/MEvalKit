@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>创建评测任务 - LLM评测平台</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        .form-card {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 2rem;
+            border-radius: 0.5rem;
+            box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+            background-color: #fff;
+        }
+        .form-title {
+            margin-bottom: 1.5rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid #dee2e6;
+        }
+        .form-section {
+            margin-bottom: 2rem;
+        }
+        .form-select {
+            font-size: 1rem;
+            padding: 0.75rem;
+        }
+        .btn-primary {
+            padding: 0.75rem 1.5rem;
+            font-size: 1.1rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container mt-4 mb-5">
+        <!-- 导航栏 -->
+        <nav class="navbar navbar-expand-lg navbar-light bg-light mb-4">
+            <div class="container-fluid">
+                <a class="navbar-brand" href="/">LLM评测平台</a>
+                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                    <span class="navbar-toggler-icon"></span>
+                </button>
+                <div class="collapse navbar-collapse" id="navbarNav">
+                    <ul class="navbar-nav">
+                        <li class="nav-item">
+                            <a class="nav-link" href="/">总榜</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/specific_leaderboard">分榜</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/results">评测任务</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link active" href="/create_task">创建任务</a>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </nav>
+        
+        <div class="form-card">
+            <h1 class="form-title">创建评测任务</h1>
+            
+            <form action="/start-task" method="post">
+                <div class="form-section">
+                    <h4>选择评测数据集</h4>
+                    <select class="form-select" id="dataset-select" name="dataset" required>
+                        <option value="" disabled selected>请选择评测数据集</option>
+                        <!-- 文本评测集 -->
+                        <optgroup label="文本评测集">
+                            {% for dataset in text_datasets %}
+                            <option value="{{ dataset }}" data-type="text">{{ dataset }}</option>
+                            {% endfor %}
+                        </optgroup>
+                        <!-- 多模态评测集 -->
+                        <optgroup label="多模态评测集">
+                            {% for dataset in multimodal_datasets %}
+                            <option value="{{ dataset }}" data-type="multimodal">{{ dataset }}</option>
+                            {% endfor %}
+                        </optgroup>
+                        <!-- LLMJudge评测集 -->
+                        <optgroup label="LLMJudge评测集">
+                            {% for dataset in llmjudge_datasets %}
+                            <option value="{{ dataset }}" data-type="llmjudge">{{ dataset }}</option>
+                            {% endfor %}
+                        </optgroup>
+                    </select>
+                </div>
+                
+                <div class="form-section">
+                    <h4>选择评测模型</h4>
+                    <select class="form-select" id="model-select" name="model" required>
+                        <option value="" disabled selected>请先选择评测数据集</option>
+                    </select>
+                </div>
+                
+                <!-- LLMJudge专用选项，默认隐藏 -->
+                <div class="form-section" id="judge-model-section" style="display: none;">
+                    <h4>选择判断模型</h4>
+                    <select class="form-select" id="judgment-model-select" name="judgment_model">
+                        {% for model in judge_models %}
+                        <option value="{{ model }}">{{ model }}</option>
+                        {% endfor %}
+                    </select>
+                    <div class="form-text">用于评判模型回答质量的裁判模型</div>
+                </div>
+                
+                <div class="form-section">
+                    <h4>评估模式</h4>
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="radio" name="eval_mode" id="eval_mode_start" value="start_from_beginning" checked>
+                        <label class="form-check-label" for="eval_mode_start">
+                            从头开始评估（随机选择100题）
+                        </label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="eval_mode" id="eval_mode_resume" value="resume_from_checkpoint">
+                        <label class="form-check-label" for="eval_mode_resume">
+                            从断点继续评估
+                        </label>
+                    </div>
+                </div>
+                
+                <div class="d-grid gap-2 mt-4">
+                    <button type="submit" class="btn btn-primary">开始评测</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // 模型数据
+        const textModels = {{ text_models|tojson }};
+        const multimodalModels = {{ multimodal_models|tojson }};
+        
+        document.addEventListener('DOMContentLoaded', function() {
+            const datasetSelect = document.getElementById('dataset-select');
+            const modelSelect = document.getElementById('model-select');
+            const judgeModelSection = document.getElementById('judge-model-section');
+            
+            // 初始化
+            datasetSelect.selectedIndex = 0;
+            
+            // 当选择数据集变化时
+            datasetSelect.addEventListener('change', function() {
+                const selectedOption = datasetSelect.options[datasetSelect.selectedIndex];
+                const datasetType = selectedOption.getAttribute('data-type');
+                
+                // 清空模型选择
+                modelSelect.innerHTML = '';
+                
+                // 根据数据集类型填充模型选项
+                let models = [];
+                if (datasetType === 'multimodal') {
+                    models = multimodalModels;
+                } else {
+                    models = textModels;
+                }
+                
+                // 添加默认选项
+                const defaultOption = document.createElement('option');
+                defaultOption.value = '';
+                defaultOption.disabled = true;
+                defaultOption.selected = true;
+                defaultOption.textContent = '请选择评测模型';
+                modelSelect.appendChild(defaultOption);
+                
+                // 添加模型选项
+                models.forEach(model => {
+                    const option = document.createElement('option');
+                    option.value = model;
+                    option.textContent = model;
+                    modelSelect.appendChild(option);
+                });
+                
+                // 显示/隐藏判断模型选择
+                if (datasetType === 'llmjudge') {
+                    judgeModelSection.style.display = 'block';
+                } else {
+                    judgeModelSection.style.display = 'none';
+                }
+            });
+        });
+    </script>
+</body>
+</html> 
