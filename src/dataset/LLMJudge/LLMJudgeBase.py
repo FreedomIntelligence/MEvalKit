@@ -3,12 +3,11 @@ import os
 from pathlib import Path
 
 project_root = Path(__file__).resolve().parent.parent.parent
-print(project_root)
 sys.path.append(str(project_root))
 
 from datasets import load_dataset, Dataset
 from utils.utils_loading import *
-from utils.LLMJudge_constants import *
+
 from typing import List, Tuple
 DATASET_INFO = load_dataset_info("dataset_info/LLMJudge_dataset.json")
 

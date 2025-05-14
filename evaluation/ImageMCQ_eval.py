@@ -5,14 +5,13 @@ from pathlib import Path
 from openai import BadRequestError, AuthenticationError
 
 project_root = Path(__file__).resolve().parent.parent
-print(project_root)
 sys.path.append(str(project_root))
 # sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from src.dataset.Image.ImageMCQ import *
 from src.api.multimodal_api import *
 from src.utils.MCQ_constants import *
-from src.utils.map_constants import *
+from src.utils.model_and_dataset import *
 from src.utils.default_prompts import *
 from tqdm import tqdm
 import concurrent.futures

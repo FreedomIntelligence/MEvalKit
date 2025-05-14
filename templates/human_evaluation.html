@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>人工评估 - {{ task.dataset }}</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .question-container {
+            margin: 20px 0;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            background-color: #f9f9f9;
+        }
+        .progress-info {
+            margin-bottom: 20px;
+        }
+        .choice {
+            margin: 10px 0;
+            padding: 10px;
+            border: 1px solid #eee;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .choice:hover {
+            background-color: #e9ecef;
+        }
+        .choice.selected {
+            background-color: #d1e7dd;
+            border-color: #badbcc;
+        }
+        .question-image {
+            max-width: 100%;
+            max-height: 400px;
+            margin: 15px 0;
+        }
+        .question-nav {
+            margin: 20px 0;
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-radius: 5px;
+            border: 1px solid #ddd;
+        }
+        .nav-buttons {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+            margin-top: 10px;
+        }
+        .nav-btn {
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+        }
+        .btn-container {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 20px;
+        }
+        .jump-container {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-top: 15px;
+        }
+        .jump-input {
+            width: 70px;
+        }
+        .progress-stats {
+            font-size: 16px;
+            font-weight: 500;
+            color: #0d6efd;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container mt-4">
+        <h1>人工评估 - {{ task.dataset }}</h1>
+        
+        <div class="progress-info">
+            <div class="progress">
+                <div class="progress-bar" role="progressbar" style="width: {{ task.progress }}%;" 
+                     aria-valuenow="{{ task.progress }}" aria-valuemin="0" aria-valuemax="100">
+                    {{ task.progress }}%
+                </div>
+            </div>
+            <div class="d-flex justify-content-between mt-2">
+                <p>问题 {{ question_index + 1 }} / {{ total_questions }}</p>
+                <!-- 新增进度统计 -->
+                <p class="progress-stats">已完成: {{ task.completed_questions }} / {{ total_questions }} 题</p>
+            </div>
+        </div>
+        
+        <!-- 简化的题目导航 -->
+        <div class="question-nav">
+            <div class="d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">题目导航</h5>
+                
+                <!-- 跳转功能 -->
+                <div class="jump-container">
+                    <div class="input-group">
+                        <input type="number" class="form-control jump-input" id="jumpToQuestion" 
+                               min="1" max="{{ total_questions }}" placeholder="题号">
+                        <button class="btn btn-outline-secondary" type="button" onclick="jumpToQuestion()">跳转</button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 翻页按钮 -->
+            <div class="d-flex justify-content-between mt-3">
+                {% set current_page = (question_index / 50)|int + 1 %}
+                {% set start_index = (current_page - 1) * 50 %}
+                {% set end_index = start_index + 50 if start_index + 50 < total_questions else total_questions %}
+                {% set prev_index = start_index - 50 if start_index > 0 else 0 %}
+                
+                <!-- 上一页按钮 -->
+                <a href="{{ url_for('human_evaluation', task_id=task.id, question_index=prev_index) }}" 
+                   class="btn btn-outline-primary {% if start_index == 0 %}disabled{% endif %}">
+                    <i class="bi bi-chevron-left"></i> 上50题
+                </a>
+                
+                <!-- 当前页信息 -->
+                <span class="align-self-center">
+                    当前显示: {{ start_index + 1 }} - {{ end_index }} 题
+                </span>
+                
+                <!-- 下一页按钮 -->
+                <a href="{{ url_for('human_evaluation', task_id=task.id, question_index=end_index if end_index < total_questions else start_index) }}" 
+                   class="btn btn-outline-primary {% if end_index >= total_questions %}disabled{% endif %}">
+                    下50题 <i class="bi bi-chevron-right"></i>
+                </a>
+            </div>
+            
+            <!-- 题号按钮 -->
+            <div class="nav-buttons mt-3">
+                {% for i in range(start_index, end_index) %}
+                    {% set is_current = i == question_index %}
+                    {% set is_answered = task.answered_questions and i in task.answered_questions %}
+                    <a href="{{ url_for('human_evaluation', task_id=task.id, question_index=i) }}" 
+                       class="btn nav-btn {% if is_current %}btn-primary{% elif is_answered %}btn-success{% else %}btn-outline-secondary{% endif %}">
+                        {{ i + 1 }}
+                    </a>
+                {% endfor %}
+            </div>
+        </div>
+        
+        <div class="question-container">
+            <h4>{{ question }}</h4>
+            
+            {% if task.images and task.images[question_index] %}
+            <div class="text-center">
+                <img src="{{ task.images[question_index] }}" alt="问题图片" class="question-image">
+            </div>
+            {% endif %}
+            
+            <form method="post" action="{{ url_for('submit_answer', task_id=task.id) }}" id="answerForm">
+                <!-- 隐藏字段记录当前题号 -->
+                <input type="hidden" name="question_index" value="{{ question_index }}">
+                
+                <div class="choices mt-3">
+                    {% for i in range(4) %}
+                    {% set letter = ["A", "B", "C", "D"][i] %}
+                    <div class="form-check choice" onclick="selectOption('{{ letter }}')">
+                        <input class="form-check-input" type="radio" name="answer" id="option{{ letter }}" value="{{ letter }}"
+                              {% if task.user_selections and task.user_selections[question_index] == letter %}checked{% endif %} required>
+                        <label class="form-check-label" for="option{{ letter }}">
+                            {{ letter }}. 
+                            {% if task.choices and question_index < task.choices|length and i < task.choices[question_index]|length %}
+                                {{ task.choices[question_index][i] }}
+                            {% else %}
+                                选项{{ letter }}
+                            {% endif %}
+                        </label>
+                    </div>
+                    {% endfor %}
+                </div>
+                
+                <div class="btn-container">
+                    {% if question_index > 0 %}
+                    <a href="{{ url_for('human_evaluation', task_id=task.id, question_index=question_index-1) }}" class="btn btn-secondary">上一题</a>
+                    {% else %}
+                    <div></div>  <!-- 占位 -->
+                    {% endif %}
+                    
+                    <button type="submit" class="btn btn-primary">确认并继续</button>
+                    
+                    {% if question_index < total_questions - 1 %}
+                    <a href="{{ url_for('human_evaluation', task_id=task.id, question_index=question_index+1) }}" class="btn btn-secondary">跳过此题</a>
+                    {% else %}
+                    <div></div>  <!-- 占位 -->
+                    {% endif %}
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <script>
+        function selectOption(letter) {
+            // 清除所有已选择的样式
+            document.querySelectorAll('.choice').forEach(choice => {
+                choice.classList.remove('selected');
+            });
+            
+            // 选中当前选项
+            document.getElementById('option' + letter).checked = true;
+            document.getElementById('option' + letter).closest('.choice').classList.add('selected');
+        }
+        
+        // 跳转到指定题目
+        function jumpToQuestion() {
+            const input = document.getElementById('jumpToQuestion');
+            let questionNum = parseInt(input.value);
+            
+            // 验证输入
+            if (isNaN(questionNum) || questionNum < 1 || questionNum > {{ total_questions }}) {
+                alert('请输入有效的题号 (1-{{ total_questions }})');
+                return;
+            }
+            
+            // 转换为索引 (从0开始)
+            const questionIndex = questionNum - 1;
+            
+            // 跳转
+            window.location.href = '{{ url_for("human_evaluation", task_id=task.id) }}' + 
+                                   '?question_index=' + questionIndex;
+        }
+        
+        // 绑定回车键事件
+        document.getElementById('jumpToQuestion').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                jumpToQuestion();
+            }
+        });
+        
+        // 初始化已选择的选项样式
+        document.addEventListener('DOMContentLoaded', function() {
+            document.querySelectorAll('input[type="radio"]:checked').forEach(radio => {
+                radio.closest('.choice').classList.add('selected');
+            });
+        });
+    </script>
+</body>
+</html>

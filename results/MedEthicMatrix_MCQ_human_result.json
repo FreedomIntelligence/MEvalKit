@@ -1,0 +1,83 @@
+{
+  "task_id": "MedEthicMatrix_MCQ_gpt-4o_1747187728",
+  "dataset": "MedEthicMatrix_MCQ",
+  "model": "gpt-4o",
+  "eval_mode": "give_answers",
+  "completed_at": 1747187749.5739403,
+  "answers": [
+    {
+      "question_index": 0,
+      "question": "在撒哈拉以南非洲的社区旅游模式中，哪个伦理原则对于解决医疗保健提供中的挑战最为关键？",
+      "user_answer": "A",
+      "correct_answer": "B",
+      "is_correct": false
+    },
+    {
+      "question_index": 1,
+      "question": "在来自贫困国家的连体双胞胎情境中，解决母亲对分离双胞胎的顾虑时，哪个伦理原则最为相关？",
+      "user_answer": "C",
+      "correct_answer": "C",
+      "is_correct": true
+    },
+    {
+      "question_index": 2,
+      "question": "鉴于大黄具有强烈的泻下作用，推荐其用于便秘治疗时应遵循哪项伦理原则？",
+      "user_answer": "D",
+      "correct_answer": "C",
+      "is_correct": false
+    },
+    {
+      "question_index": 3,
+      "question": "不告知家属关于可通过串联质谱筛查检测出的代谢性疾病的常染色体隐性遗传，违反了哪项伦理原则？",
+      "user_answer": "B",
+      "correct_answer": "D",
+      "is_correct": false
+    },
+    {
+      "question_index": 4,
+      "question": "鉴于中国、印度、日本和韩国缺乏针对基因组改变或克隆的具体动物福利法律，这些国家在研究中使用转基因动物的伦理立场是什么？",
+      "user_answer": "C",
+      "correct_answer": "C",
+      "is_correct": true
+    },
+    {
+      "question_index": 5,
+      "question": "哪种观点认为由于非人类动物的福祉能力较低，其价值低于造福人类，因此不优先考虑对自然的干预？",
+      "user_answer": "B",
+      "correct_answer": "B",
+      "is_correct": true
+    },
+    {
+      "question_index": 6,
+      "question": "当一名医生面临医疗事故指控时，医院管理层和同事的伦理责任是什么，如Bor Nekrep案例所示？",
+      "user_answer": "D",
+      "correct_answer": "C",
+      "is_correct": false
+    },
+    {
+      "question_index": 7,
+      "question": "为什么患者关系在护理伦理中处于核心地位，强调关怀而非治愈？",
+      "user_answer": "A",
+      "correct_answer": "C",
+      "is_correct": false
+    },
+    {
+      "question_index": 8,
+      "question": "在医疗环境中，对于儿童、老人或家庭虐待案例，提供护理时最关键的伦理原则是什么？",
+      "user_answer": "B",
+      "correct_answer": "D",
+      "is_correct": false
+    },
+    {
+      "question_index": 9,
+      "question": "在Michel Morange的《生命解释》中讨论的诊断不可逆昏迷时，主要挑战的是哪一项伦理原则？",
+      "user_answer": "A",
+      "correct_answer": "A",
+      "is_correct": true
+    }
+  ],
+  "total_questions": 10,
+  "completed_questions": 10,
+  "correct_answers": 4,
+  "accuracy": 0.4
+}

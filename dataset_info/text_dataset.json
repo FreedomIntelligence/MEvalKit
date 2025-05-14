@@ -77,7 +77,7 @@
 
         }
     },
-    "MedEthicMatrix_MCQ": {
+    "MedEthicMatrixMCQ": {
         "language": "zh",
         "question": {
             "loading_way": "json",

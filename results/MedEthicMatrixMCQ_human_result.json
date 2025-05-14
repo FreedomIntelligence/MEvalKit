@@ -1,0 +1,468 @@
+{
+  "task_id": "MedEthicMatrixMCQ_人工评估_1747189514",
+  "dataset": "MedEthicMatrixMCQ",
+  "model": "人工评估",
+  "eval_mode": "give_answers",
+  "completed_at": 1747189657.7691808,
+  "answers": [
+    {
+      "question_index": 0,
+      "question": "在撒哈拉以南非洲的社区旅游模式中，哪个伦理原则对于解决医疗保健提供中的挑战最为关键？",
+      "user_answer": "A",
+      "correct_answer": "B",
+      "is_correct": false
+    },
+    {
+      "question_index": 1,
+      "question": "在来自贫困国家的连体双胞胎情境中，解决母亲对分离双胞胎的顾虑时，哪个伦理原则最为相关？",
+      "user_answer": "A",
+      "correct_answer": "C",
+      "is_correct": false
+    },
+    {
+      "question_index": 2,
+      "question": "鉴于大黄具有强烈的泻下作用，推荐其用于便秘治疗时应遵循哪项伦理原则？",
+      "user_answer": "C",
+      "correct_answer": "C",
+      "is_correct": true
+    },
+    {
+      "question_index": 3,
+      "question": "不告知家属关于可通过串联质谱筛查检测出的代谢性疾病的常染色体隐性遗传，违反了哪项伦理原则？",
+      "user_answer": "B",
+      "correct_answer": "D",
+      "is_correct": false
+    },
+    {
+      "question_index": 4,
+      "question": "鉴于中国、印度、日本和韩国缺乏针对基因组改变或克隆的具体动物福利法律，这些国家在研究中使用转基因动物的伦理立场是什么？",
+      "user_answer": "C",
+      "correct_answer": "C",
+      "is_correct": true
+    },
+    {
+      "question_index": 5,
+      "question": "哪种观点认为由于非人类动物的福祉能力较低，其价值低于造福人类，因此不优先考虑对自然的干预？",
+      "user_answer": "D",
+      "correct_answer": "B",
+      "is_correct": false
+    },
+    {
+      "question_index": 6,
+      "question": "当一名医生面临医疗事故指控时，医院管理层和同事的伦理责任是什么，如Bor Nekrep案例所示？",
+      "user_answer": "C",
+      "correct_answer": "C",
+      "is_correct": true
+    },
+    {
+      "question_index": 7,
+      "question": "为什么患者关系在护理伦理中处于核心地位，强调关怀而非治愈？",
+      "user_answer": "B",
+      "correct_answer": "C",
+      "is_correct": false
+    },
+    {
+      "question_index": 8,
+      "question": "在医疗环境中，对于儿童、老人或家庭虐待案例，提供护理时最关键的伦理原则是什么？",
+      "user_answer": "B",
+      "correct_answer": "D",
+      "is_correct": false
+    },
+    {
+      "question_index": 9,
+      "question": "在Michel Morange的《生命解释》中讨论的诊断不可逆昏迷时，主要挑战的是哪一项伦理原则？",
+      "user_answer": "C",
+      "correct_answer": "A",
+      "is_correct": false
+    },
+    {
+      "question_index": 10,
+      "question": "在生物样本库中全球范围内结合基因型和表型数据会引发哪些伦理挑战？",
+      "user_answer": "B",
+      "correct_answer": "C",
+      "is_correct": false
+    },
+    {
+      "question_index": 11,
+      "question": "在比较可逆性SSRIs与不可逆性手术阉割治疗性欲倒错时，哪个伦理原则最为相关？",
+      "user_answer": "C",
+      "correct_answer": "A",
+      "is_correct": false
+    },
+    {
+      "question_index": 12,
+      "question": "在Airedale NHS Trust诉Bland案中，关于为处于持续性植物状态的患者停止人工喂养，考察了哪些伦理原则？",
+      "user_answer": "D",
+      "correct_answer": "A",
+      "is_correct": false
+    },
+    {
+      "question_index": 13,
+      "question": "Julia Driver关于共谋的观点：在评估参与错误活动的道德问题时，哪个因素未被考虑？",
+      "user_answer": "B",
+      "correct_answer": "D",
+      "is_correct": false
+    },
+    {
+      "question_index": 14,
+      "question": "Abdullah Bin Bayyah如何提议在医疗伦理学中互换使用‘规则’和‘原则’？",
+      "user_answer": "A",
+      "correct_answer": "B",
+      "is_correct": false
+    },
+    {
+      "question_index": 15,
+      "question": "在发展中国家进行如HIV等严重疾病试验中，以下哪项伦理原则最不支持使用安慰剂？",
+      "user_answer": "D",
+      "correct_answer": "C",
+      "is_correct": false
+    },
+    {
+      "question_index": 16,
+      "question": "对于国际兽医和畜牧业服务组织而言，哪个伦理原则最为相关？",
+      "user_answer": "B",
+      "correct_answer": "C",
+      "is_correct": false
+    },
+    {
+      "question_index": 17,
+      "question": "在考虑全球对一个由男性孕育的孩子的关注可能带来的潜在伤害时，哪个伦理原则最为相关？",
+      "user_answer": "D",
+      "correct_answer": "B",
+      "is_correct": false
+    },
+    {
+      "question_index": 18,
+      "question": "斯马茨的观点认为人类项目的局限性会导致不可避免的挫折感，这一观点最挑战了哪一项伦理原则？",
+      "user_answer": "B",
+      "correct_answer": "C",
+      "is_correct": false
+    },
+    {
+      "question_index": 19,
+      "question": "Ives (2014)是如何描述医疗伦理学中的生物伦理学研究努力的？",
+      "user_answer": "C",
+      "correct_answer": "B",
+      "is_correct": false
+    },
+    {
+      "question_index": 20,
+      "question": "在疼痛研究中使用动物时，哪个伦理原则最为相关？",
+      "user_answer": "D",
+      "correct_answer": "B",
+      "is_correct": false
+    },
+    {
+      "question_index": 21,
+      "question": "在尼加拉瓜资源匮乏的地区，AMOS Health and Hope的T-PE方法对社区赋权强调了哪一项伦理原则？",
+      "user_answer": "A",
+      "correct_answer": "B",
+      "is_correct": false
+    },
+    {
+      "question_index": 22,
+      "question": "哪个伦理原则支持进行遗传病筛查以确保孩子拥有开放未来的权利？",
+      "user_answer": "D",
+      "correct_answer": "B",
+      "is_correct": false
+    },
+    {
+      "question_index": 23,
+      "question": "进化医学对疾病起源的关注最挑战哪一项伦理原则？",
+      "user_answer": "B",
+      "correct_answer": "B",
+      "is_correct": true
+    },
+    {
+      "question_index": 24,
+      "question": "在美国护士协会的伦理准则中，关于护士对患者的义务，最强调的是哪一项忠诚原则？",
+      "user_answer": "A",
+      "correct_answer": "D",
+      "is_correct": false
+    },
+    {
+      "question_index": 25,
+      "question": "在免疫学中，为什么解释像狼疮这样的自身免疫性疾病时，系统性功能概念比病因学概念更受青睐？",
+      "user_answer": "D",
+      "correct_answer": "C",
+      "is_correct": false
+    },
+    {
+      "question_index": 26,
+      "question": "分析师在知情同意过程中最常引用的披露信息的理由是什么，其中治疗利益占79.6%？",
+      "user_answer": "C",
+      "correct_answer": "C",
+      "is_correct": true
+    },
+    {
+      "question_index": 27,
+      "question": "根据批评者的观点，医疗伦理学中严格强调患者自主权的主要批评是什么？",
+      "user_answer": "B",
+      "correct_answer": "C",
+      "is_correct": false
+    },
+    {
+      "question_index": 28,
+      "question": "关于克隆的伦理问题中，哪一项最影响克隆个体的个人身份和自主性？",
+      "user_answer": "B",
+      "correct_answer": "B",
+      "is_correct": true
+    },
+    {
+      "question_index": 29,
+      "question": "在为期两个月的交流项目中，护士从多样化的日常工作中学习，这支持了哪一项伦理原则？",
+      "user_answer": "D",
+      "correct_answer": "C",
+      "is_correct": false
+    },
+    {
+      "question_index": 30,
+      "question": "医疗系统未能考虑Sangeeta的整体状况，导致她的孩子受到伤害，这最挑战了哪一项伦理原则？",
+      "user_answer": "B",
+      "correct_answer": "D",
+      "is_correct": false
+    },
+    {
+      "question_index": 31,
+      "question": "在婴儿查理案例中，欧洲人权法院基于潜在的痛苦和无效性，支持姑息治疗而非实验性治疗时，优先考虑了哪一项伦理原则？",
+      "user_answer": "B",
+      "correct_answer": "C",
+      "is_correct": false
+    },
+    {
+      "question_index": 32,
+      "question": "哪种情境对反对堕胎的批评者构成了一个具有挑战性的伦理困境，尤其是当怀孕危及母亲生命时？",
+      "user_answer": "B",
+      "correct_answer": "B",
+      "is_correct": true
+    },
+    {
+      "question_index": 33,
+      "question": "2005年联合国教科文组织《世界生物伦理与人权宣言》中明确提及，但《赫尔辛基宣言》中未提及的伦理原则是哪一个？",
+      "user_answer": "A",
+      "correct_answer": "C",
+      "is_correct": false
+    },
+    {
+      "question_index": 34,
+      "question": "当父母为了音乐天赋而对孩子进行基因改造时，考虑到治疗与增强的区别，会引发什么伦理问题？",
+      "user_answer": "D",
+      "correct_answer": "B",
+      "is_correct": false
+    },
+    {
+      "question_index": 35,
+      "question": "《2004年儿童法》强调多学科合作与问责制，支持了哪一项伦理原则？",
+      "user_answer": "B",
+      "correct_answer": "C",
+      "is_correct": false
+    },
+    {
+      "question_index": 36,
+      "question": "根据文章，为什么研究人员应该放弃参与者的脆弱性概念？",
+      "user_answer": "A",
+      "correct_answer": "D",
+      "is_correct": false
+    },
+    {
+      "question_index": 37,
+      "question": "当患者未意识到自己怀孕且有抑郁症病史时，外科医生决定在子宫切除术中移除胎儿，这一行为支持了哪项伦理原则？",
+      "user_answer": "D",
+      "correct_answer": "C",
+      "is_correct": false
+    },
+    {
+      "question_index": 38,
+      "question": "在非医疗必要情况下使用伟哥会挑战哪项医疗伦理原则？",
+      "user_answer": "C",
+      "correct_answer": "B",
+      "is_correct": false
+    },
+    {
+      "question_index": 39,
+      "question": "McIntosh的白人特权框架在系统性结构方面的一个局限性是什么？",
+      "user_answer": "B",
+      "correct_answer": "A",
+      "is_correct": false
+    },
+    {
+      "question_index": 40,
+      "question": "在Sherri Finkbine 1962年涉及沙利度胺暴露的案例中，医生建议终止妊娠主要涉及哪一项伦理原则？",
+      "user_answer": "C",
+      "correct_answer": "B",
+      "is_correct": false
+    },
+    {
+      "question_index": 41,
+      "question": "在非人类权利项目为自主黑猩猩争取法律人格的论证中，哪个伦理原则最为相关？",
+      "user_answer": "D",
+      "correct_answer": "C",
+      "is_correct": false
+    },
+    {
+      "question_index": 42,
+      "question": "NCMB通过发布针对举报人Kernan Manion医生的未经证实的指控，可能违反了哪项伦理原则？",
+      "user_answer": "D",
+      "correct_answer": "B",
+      "is_correct": false
+    },
+    {
+      "question_index": 43,
+      "question": "在中医实践中，如温补气血，哪个伦理原则确保了安全性？",
+      "user_answer": "D",
+      "correct_answer": "D",
+      "is_correct": true
+    },
+    {
+      "question_index": 44,
+      "question": "专科社区护理致力于帮助有复杂需求的儿童过上正常生活并充分参与学校活动，这最直接涉及哪项伦理原则？",
+      "user_answer": "D",
+      "correct_answer": "C",
+      "is_correct": false
+    },
+    {
+      "question_index": 45,
+      "question": "根据医疗伦理学和1998年人权法案的定义，以下哪一项不是用于确定脑死亡的标准？",
+      "user_answer": "C",
+      "correct_answer": "C",
+      "is_correct": true
+    },
+    {
+      "question_index": 46,
+      "question": "在生物技术专利中，对于已知化合物如胰岛素的基因识别和分离，应被视为发现还是发明？",
+      "user_answer": "B",
+      "correct_answer": "C",
+      "is_correct": false
+    },
+    {
+      "question_index": 47,
+      "question": "在急性失血性休克的上消化道出血中，哪种策略在伦理上被证明可以减少输血并提高生存率？",
+      "user_answer": "A",
+      "correct_answer": "C",
+      "is_correct": false
+    },
+    {
+      "question_index": 48,
+      "question": "根据Floridi和Sanders关于道德代理和责任的观点，考虑机器人作为道德代理的主要条件是什么？",
+      "user_answer": "C",
+      "correct_answer": "C",
+      "is_correct": true
+    },
+    {
+      "question_index": 49,
+      "question": "医疗辅助死亡最挑战哪一项伦理原则？",
+      "user_answer": "B",
+      "correct_answer": "C",
+      "is_correct": false
+    },
+    {
+      "question_index": 50,
+      "question": "当一个国际非政府组织(INGO)在一个HIV/AIDS治疗中心与传统治疗师合作时，这些治疗师受到社区的信任，但开出的药物与抗逆转录病毒药物有负面相互作用，此时最相关的伦理原则是什么？",
+      "user_answer": "C",
+      "correct_answer": "A",
+      "is_correct": false
+    },
+    {
+      "question_index": 51,
+      "question": "作者在研究伦理中反对的道德主义特征是什么，特别是将正义和自主等外在价值整合到研究目标中？",
+      "user_answer": "D",
+      "correct_answer": "A",
+      "is_correct": false
+    },
+    {
+      "question_index": 52,
+      "question": "在塔斯基吉研究中，尽管已知青霉素有效，但参与者却被拒绝使用，这违反了医疗伦理的哪一项原则？",
+      "user_answer": "C",
+      "correct_answer": "C",
+      "is_correct": true
+    },
+    {
+      "question_index": 53,
+      "question": "在医疗伦理学中，如果一名工程师避免分析潜在的危险废物样本并向客户提供不完整的信息，这违反了哪项原则？",
+      "user_answer": "A",
+      "correct_answer": "B",
+      "is_correct": false
+    },
+    {
+      "question_index": 54,
+      "question": "哪个案例最直接涉及医疗决策中的患者自主权？",
+      "user_answer": "C",
+      "correct_answer": "D",
+      "is_correct": false
+    },
+    {
+      "question_index": 55,
+      "question": "在关注如阿片类药物等基本药物获取的有效姑息治疗中，一个关键的伦理考虑是什么？",
+      "user_answer": "B",
+      "correct_answer": "A",
+      "is_correct": false
+    },
+    {
+      "question_index": 56,
+      "question": "在植物化学实验中，当污染可能阻碍生物活性成分提取时，主要的伦理关注点是什么？",
+      "user_answer": "C",
+      "correct_answer": "C",
+      "is_correct": true
+    },
+    {
+      "question_index": 57,
+      "question": "在考虑尊重个人决定和权利的前提下，为太空任务中的人类增强辩护时，哪项伦理原则最为关键？",
+      "user_answer": "A",
+      "correct_answer": "A",
+      "is_correct": true
+    },
+    {
+      "question_index": 58,
+      "question": "在Ray Kluun的《Love Life》中，安乐死最挑战哪项医疗伦理原则？",
+      "user_answer": "C",
+      "correct_answer": "C",
+      "is_correct": true
+    },
+    {
+      "question_index": 59,
+      "question": "在Ashley被保持身体矮小的案例中，哪个伦理原则受到最大挑战？",
+      "user_answer": "C",
+      "correct_answer": "D",
+      "is_correct": false
+    },
+    {
+      "question_index": 60,
+      "question": "哪个伦理原则确保分发正确的药物剂量以促进患者的福祉？",
+      "user_answer": "B",
+      "correct_answer": "A",
+      "is_correct": false
+    },
+    {
+      "question_index": 61,
+      "question": "为确保领导层顺利过渡，医疗部门负责人理想情况下应在何时开始继任计划？",
+      "user_answer": "C",
+      "correct_answer": "B",
+      "is_correct": false
+    },
+    {
+      "question_index": 62,
+      "question": "根据SI 1997 No. 1830法规，公共分析师在法律上获得处方药必须满足什么条件？",
+      "user_answer": "A",
+      "correct_answer": "A",
+      "is_correct": true
+    },
+    {
+      "question_index": 63,
+      "question": "哪个伦理原则确保了职业健康研究中的自愿参与，而不受管理层或工会的胁迫？",
+      "user_answer": "C",
+      "correct_answer": "C",
+      "is_correct": true
+    },
+    {
+      "question_index": 64,
+      "question": "在临终关怀中，哪个伦理原则可以证明为缓解痛苦而对终末期患者施用高剂量镇痛剂是合理的，即使这可能加速死亡？",
+      "user_answer": "B",
+      "correct_answer": "C",
+      "is_correct": false
+    }
+  ],
+  "total_questions": 65,
+  "completed_questions": 65,
+  "correct_answers": 16,
+  "accuracy": 0.24615384615384617
+}

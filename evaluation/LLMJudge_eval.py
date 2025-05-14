@@ -8,13 +8,11 @@ import concurrent.futures
 from tqdm import tqdm
 
 project_root = Path(__file__).resolve().parent.parent
-print(project_root)
 sys.path.append(str(project_root))
 
 from src.dataset.LLMJudge.LLMJudgeBase import *
 from src.api.text_api import *
 from src.api.multiturn_text_api import *
-from src.utils.LLMJudge_constants import *
 from src.utils.default_prompts import *
 from typing import List, Tuple, Dict, Any, Optional, Union
 from dotenv import load_dotenv

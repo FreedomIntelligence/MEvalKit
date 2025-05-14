@@ -31,6 +31,10 @@
             padding: 0.75rem 1.5rem;
             font-size: 1.1rem;
         }
+        .disabled-section {
+            opacity: 0.6;
+            pointer-events: none;
+        }
     </style>
 </head>
 <body>
@@ -64,37 +68,67 @@
         <div class="form-card">
             <h1 class="form-title">创建评测任务</h1>
             
-            <form action="/start-task" method="post">
+            <form action="/run-evaluation" method="post" id="evaluationForm">
                 <div class="form-section">
                     <h4>选择评测数据集</h4>
                     <select class="form-select" id="dataset-select" name="dataset" required>
-                        <option value="" disabled selected>请选择评测数据集</option>
-                        <!-- 文本评测集 -->
-                        <optgroup label="文本评测集">
+                        <option value="" disabled selected>请选择数据集</option>
+                        <optgroup label="文本数据集">
                             {% for dataset in text_datasets %}
-                            <option value="{{ dataset }}" data-type="text">{{ dataset }}</option>
+                            <option value="{{ dataset }}">{{ dataset }}</option>
                             {% endfor %}
                         </optgroup>
-                        <!-- 多模态评测集 -->
-                        <optgroup label="多模态评测集">
+                        <optgroup label="多模态数据集">
                             {% for dataset in multimodal_datasets %}
-                            <option value="{{ dataset }}" data-type="multimodal">{{ dataset }}</option>
+                            <option value="{{ dataset }}">{{ dataset }}</option>
                             {% endfor %}
                         </optgroup>
-                        <!-- LLMJudge评测集 -->
-                        <optgroup label="LLMJudge评测集">
+                        <optgroup label="LLM判断数据集">
                             {% for dataset in llmjudge_datasets %}
-                            <option value="{{ dataset }}" data-type="llmjudge">{{ dataset }}</option>
+                            <option value="{{ dataset }}">{{ dataset }}</option>
                             {% endfor %}
                         </optgroup>
                     </select>
                 </div>
                 
                 <div class="form-section">
-                    <h4>选择评测模型</h4>
-                    <select class="form-select" id="model-select" name="model" required>
-                        <option value="" disabled selected>请先选择评测数据集</option>
+                    <h4>选择评测模式</h4>
+                    <select class="form-select" id="eval-mode-select" name="eval_mode" required onchange="handleEvalModeChange()">
+                        <option value="" disabled selected>请选择评测模式</option>
+                        {% for mode in eval_modes %}
+                        <option value="{{ mode }}">
+                            {% if mode == "zero-shot" %}
+                                零样本评估
+                            {% elif mode == "few-shot" %}
+                                少样本评估
+                            {% elif mode == "give_answers" %}
+                                人工评估
+                            {% else %}
+                                {{ mode }}
+                            {% endif %}
+                        </option>
+                        {% endfor %}
                     </select>
+                    <div id="human-eval-notice" class="form-text text-danger mt-2 d-none">
+                        注意：人工评估模式下无需选择模型，您将手动作答所有题目。
+                    </div>
+                </div>
+                
+                <div class="form-section" id="model-selection-section">
+                    <h4>选择评测模型</h4>
+                    <select class="form-select" id="model-select" name="model">
+                        <option value="" disabled selected>请先选择数据集</option>
+                    </select>
+                </div>
+                
+                <!-- 新增：评测数量输入框 -->
+                <div class="form-section">
+                    <h4>评测题目数量</h4>
+                    <input type="number" class="form-control" id="question-limit" name="question_limit" 
+                           placeholder="留空则评测全部题目">
+                    <div id="question-limit-feedback" class="form-text">
+                        请输入要评测的题目数量（正整数）。如果留空或输入无效值，将评测全部题目。
+                    </div>
                 </div>
                 
                 <!-- LLMJudge专用选项，默认隐藏 -->
@@ -108,22 +142,6 @@
                     <div class="form-text">用于评判模型回答质量的裁判模型</div>
                 </div>
                 
-                <div class="form-section">
-                    <h4>评估模式</h4>
-                    <div class="form-check mb-2">
-                        <input class="form-check-input" type="radio" name="eval_mode" id="eval_mode_start" value="start_from_beginning" checked>
-                        <label class="form-check-label" for="eval_mode_start">
-                            从头开始评估（随机选择100题）
-                        </label>
-                    </div>
-                    <div class="form-check">
-                        <input class="form-check-input" type="radio" name="eval_mode" id="eval_mode_resume" value="resume_from_checkpoint">
-                        <label class="form-check-label" for="eval_mode_resume">
-                            从断点继续评估
-                        </label>
-                    </div>
-                </div>
-                
                 <div class="d-grid gap-2 mt-4">
                     <button type="submit" class="btn btn-primary">开始评测</button>
                 </div>
@@ -133,57 +151,118 @@
     
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        // 模型数据
-        const textModels = {{ text_models|tojson }};
-        const multimodalModels = {{ multimodal_models|tojson }};
+        // 处理评估模式变化
+        function handleEvalModeChange() {
+            const evalModeSelect = document.getElementById('eval-mode-select');
+            const modelSelect = document.getElementById('model-select');
+            const modelSection = document.getElementById('model-selection-section');
+            const humanEvalNotice = document.getElementById('human-eval-notice');
+            
+            if (evalModeSelect.value === 'give_answers') {
+                // 人工评估模式
+                modelSection.classList.add('disabled-section');
+                modelSelect.disabled = true;
+                humanEvalNotice.classList.remove('d-none');
+                // 设置一个占位符值，后端会忽略
+                modelSelect.value = 'human_evaluator';
+            } else {
+                // 其他评估模式
+                modelSection.classList.remove('disabled-section');
+                modelSelect.disabled = false;
+                humanEvalNotice.classList.add('d-none');
+            }
+        }
         
-        document.addEventListener('DOMContentLoaded', function() {
+        // 处理问题数量输入
+        document.getElementById('question-limit').addEventListener('input', function() {
+            const input = this.value.trim();
+            const feedback = document.getElementById('question-limit-feedback');
+            
+            if (input === '') {
+                feedback.textContent = '请输入要评测的题目数量（正整数）。如果留空或输入无效值，将评测全部题目。';
+                feedback.classList.remove('text-danger');
+                return;
+            }
+            
+            const numValue = Number(input);
+            if (isNaN(numValue) || !Number.isInteger(numValue) || numValue <= 0) {
+                feedback.textContent = '输入无效！将评测全部题目。';
+                feedback.classList.add('text-danger');
+            } else {
+                feedback.textContent = `将评测前 ${numValue} 个题目。`;
+                feedback.classList.remove('text-danger');
+            }
+        });
+        
+        // 表单提交验证
+        document.getElementById('evaluationForm').addEventListener('submit', function(event) {
+            const evalMode = document.getElementById('eval-mode-select').value;
             const datasetSelect = document.getElementById('dataset-select');
             const modelSelect = document.getElementById('model-select');
-            const judgeModelSection = document.getElementById('judge-model-section');
             
-            // 初始化
-            datasetSelect.selectedIndex = 0;
+            // 检查是否选择了数据集
+            if (!datasetSelect.value) {
+                alert('请选择评测数据集');
+                event.preventDefault();
+                return;
+            }
             
-            // 当选择数据集变化时
-            datasetSelect.addEventListener('change', function() {
-                const selectedOption = datasetSelect.options[datasetSelect.selectedIndex];
-                const datasetType = selectedOption.getAttribute('data-type');
-                
-                // 清空模型选择
-                modelSelect.innerHTML = '';
-                
-                // 根据数据集类型填充模型选项
-                let models = [];
-                if (datasetType === 'multimodal') {
-                    models = multimodalModels;
-                } else {
-                    models = textModels;
+            // 如果不是人工评估，检查是否选择了模型
+            if (evalMode !== 'give_answers' && !modelSelect.value) {
+                alert('请选择评测模型');
+                event.preventDefault();
+                return;
+            }
+            
+            // 处理问题数量输入
+            const questionLimit = document.getElementById('question-limit').value.trim();
+            if (questionLimit !== '') {
+                const numValue = Number(questionLimit);
+                if (isNaN(numValue) || !Number.isInteger(numValue) || numValue <= 0) {
+                    if (!confirm('您输入的题目数量无效，将评测全部题目。是否继续？')) {
+                        event.preventDefault();
+                        return;
+                    }
                 }
+            }
+        });
+        
+        // 数据集变更时更新模型选项
+        document.getElementById('dataset-select').addEventListener('change', function() {
+            const dataset = this.value;
+            const modelSelect = document.getElementById('model-select');
+            
+            // 清除现有选项
+            modelSelect.innerHTML = '';
+            
+            // 根据数据集类型添加相应的模型选项
+            if (dataset) {
+                let modelOptions = [];
                 
-                // 添加默认选项
-                const defaultOption = document.createElement('option');
-                defaultOption.value = '';
-                defaultOption.disabled = true;
-                defaultOption.selected = true;
-                defaultOption.textContent = '请选择评测模型';
-                modelSelect.appendChild(defaultOption);
+                if ({{ text_datasets|tojson }}.includes(dataset)) {
+                    // 文本数据集模型
+                    modelOptions = {{ text_models|tojson }};
+                } else if ({{ multimodal_datasets|tojson }}.includes(dataset)) {
+                    // 多模态数据集模型
+                    modelOptions = {{ multimodal_models|tojson }};
+                } else if ({{ llmjudge_datasets|tojson }}.includes(dataset)) {
+                    // 判断数据集模型
+                    modelOptions = {{ judge_models|tojson }};
+                }
                 
                 // 添加模型选项
-                models.forEach(model => {
-                    const option = document.createElement('option');
-                    option.value = model;
-                    option.textContent = model;
-                    modelSelect.appendChild(option);
+                modelSelect.appendChild(new Option('请选择模型', '', true, true));
+                modelOptions.forEach(model => {
+                    modelSelect.appendChild(new Option(model, model));
                 });
                 
-                // 显示/隐藏判断模型选择
-                if (datasetType === 'llmjudge') {
-                    judgeModelSection.style.display = 'block';
-                } else {
-                    judgeModelSection.style.display = 'none';
-                }
-            });
+                modelSelect.disabled = document.getElementById('eval-mode-select').value === 'give_answers';
+            }
+        });
+        
+        // 页面加载时初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            handleEvalModeChange();
         });
     </script>
 </body>

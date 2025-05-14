@@ -1,5 +1,6 @@
 from flask import Flask, render_template, request, jsonify, redirect, url_for
 import subprocess
+import sys
 import os
 import json
 import time
@@ -8,7 +9,14 @@ from datetime import datetime
 import threading
 import re
 import glob
+
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from src.utils.model_and_dataset import *
+from evaluation.TextMCQ_eval import *
+from evaluation.ImageMCQ_eval import *
+from evaluation.LLMJudge_eval import *
+
 app = Flask(__name__)
 
 # 评估结果目录
@@ -23,11 +31,7 @@ last_leaderboard_update = 0
 
 LEADERBOARD_DATASETS = GENERAL_DATASETS + MEDICAL_KNOWLEDGE_DATASETS + MEDICAL_ETHICS_DATASETS
 
-DATASET_CATEGORIES = {
-    "文本理解": TEXT_DATASETS,
-    "多模态": MULTIMODAL_DATASETS,
-    "LLMJudge": LLMJUDGE_DATASETS
-}
+
 
 text_model_map = {
     "gpt-3.5-turbo": "gpt-3.5-turbo",
@@ -236,21 +240,17 @@ def specific_leaderboard():
 def create_task():
     """显示创建任务页面"""
     # 定义数据集和模型
-    text_datasets = ["MMLU", "CMB", "GPQA"]
-    multimodal_datasets = ["MMStar"]
-    llmjudge_datasets = ["MT-Bench"]
-    
-    text_models = ["GPT-4o", "Claude-3.5-Sonnet", "Llama-3-70B", "Qwen-72B", "GLM-4"]
-    multimodal_models = ["GPT-4o", "Claude-3.5-Sonnet", "Qwen-VL", "CogVLM"]
-    judge_models = ["GPT-4o", "Claude-3.5-Sonnet", "GPT-4"]
+    eval_modes = ["start_from_beginning", "resume_from_checkpoint", "give_answers"]
     
     return render_template('create_task.html', 
-                          text_datasets=text_datasets,
-                          multimodal_datasets=multimodal_datasets,
-                          llmjudge_datasets=llmjudge_datasets,
-                          text_models=text_models,
-                          multimodal_models=multimodal_models,
-                          judge_models=judge_models)
+                          text_datasets=TEXT_DATASETS,
+                          multimodal_datasets=IMAGE_DATASETS,
+                          llmjudge_datasets=LLMJUDGE_DATASETS,
+                          text_models=TEXT_MODELS,
+                          multimodal_models=MULTIMODAL_MODELS,
+                          judge_models=JUDGE_MODELS,
+                          eval_modes=eval_modes,
+                    )
 
 @app.route('/run-evaluation', methods=['POST'])
 def run_evaluation():
@@ -260,38 +260,37 @@ def run_evaluation():
     eval_mode = request.form.get('eval_mode')
     judgment_model_name = request.form.get('judgment_model')
     
-    if not all([dataset, model_name, eval_mode]):
+    # 处理评测数量
+    question_limit = None
+    try:
+        limit_input = request.form.get('question_limit', '').strip()
+        if limit_input:
+            question_limit = int(limit_input)
+            if question_limit <= 0:
+                question_limit = None
+    except (ValueError, TypeError):
+        question_limit = None
+    
+    # 人工评估模式特殊处理
+    if eval_mode == "give_answers":
+        model_name = "人工评估"  # 设置一个标识性名称
+    
+    if not dataset or not eval_mode or (eval_mode != "give_answers" and not model_name):
         return jsonify({"status": "error", "message": "缺少必要参数"}), 400
-    
-    model_map = {
-        "gpt-3.5-turbo": "gpt-3.5-turbo",
-        "gpt-4o": "gpt-4o",
-        "Qwen2-VL-7B-Instruct": "Pro/Qwen/Qwen2-VL-7B-Instruct"
-    }
-
-    model = model_map.get(model_name)
-    judgment_model = model_map.get(judgment_model_name)
-    
-    # 确定评估类型
-    text_mcq_datasets = ["MMLU", "CMB", "GPQA"]
-    image_mcq_datasets = ["MMStar"]
-    llm_judge_datasets = ["MT-Bench"]
-    
-    if dataset in text_mcq_datasets:
-        eval_type = "text"
-    elif dataset in image_mcq_datasets:
-        eval_type = "image"
-    elif dataset in llm_judge_datasets:
-        eval_type = "llmjudge"
-        # 检查LLMJudge类型是否提供了判别模型
-        if not judgment_model:
-            return jsonify({"status": "error", "message": "LLMJudge评测需要提供判别模型"}), 400
-    else:
-        return jsonify({"status": "error", "message": "不支持的数据集"}), 400
     
     # 创建任务ID
     task_id = f"{dataset}_{model_name}_{int(time.time())}"
-
+    
+    # 确定评估类型
+    if dataset in TEXT_DATASETS:
+        eval_type = "text"
+    elif dataset in MULTIMODAL_DATASETS:
+        eval_type = "multimodal"
+    elif dataset in LLMJUDGE_DATASETS:
+        eval_type = "llmjudge"
+    else:
+        return jsonify({"status": "error", "message": "不支持的数据集类型"}), 400
+    
     # 初始化任务状态
     active_tasks[task_id] = {
         "id": task_id,
@@ -305,99 +304,279 @@ def run_evaluation():
         "progress": 0,
         "total_questions": 0,
         "completed_questions": 0,
+        "question_limit": question_limit,  # 添加题目数量限制
         "is_evaluation_complete": False
     }
     
-    # 启动评估任务
-    def run_task():
+    # 处理人工评估模式
+    if eval_mode == "give_answers":
         try:
-            # 构建命令
-            cmd = ["python", "run.py", 
-                  "--dataset", dataset, 
-                  "--model", model_name, 
-                  "--evaluate_mode", eval_mode,
-                  "--workers", "64",
-                  "--question_limitation", "5"]
-            
-            # 如果是LLMJudge，添加judgment_model参数
-            if eval_type == "llmjudge":
-                cmd.extend(["--judgment_model", judgment_model_name])
-            
-            # 运行命令
-            process = subprocess.Popen(
-                cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                bufsize=1,
-                env={**os.environ, "PYTHONBUFFERED": "1"}
-            )
-            
-            # 更新任务状态
-            active_tasks[task_id]["process"] = process
-            active_tasks[task_id]["status"] = "running"
-            
-            # 实时获取输出
-            output_lines = []
-            
-            # 创建非阻塞读取函数
-            def read_output(stream_type):
-                stream = process.stdout if stream_type == "stdout" else process.stderr
-                for line in iter(stream.readline, ''):
-                    # 仅尝试从输出中提取tqdm进度信息
-                    try:
-                        # 尝试匹配不同格式的tqdm进度信息
-                        # 匹配格式1: 处理文本问题:   0%|          | 11/14042 [00:01<20:06, 11.63it/s]
-                        tqdm_match = re.search(r'处理文本问题:\s+(\d+)%\|.*?\| (\d+)/(\d+)', line)
-                        if not tqdm_match:
-                            # 匹配格式2: 任意文本: 45%|████▌     | 45/100 [00:05<00:06,  8.25it/s]
-                            tqdm_match = re.search(r'.*?:\s+(\d+)%\|.*?\| (\d+)/(\d+)', line)
-                        if not tqdm_match:
-                            # 匹配格式3: 45%|████▌     | 45/100 [00:05<00:06,  8.25it/s]
-                            tqdm_match = re.search(r'(\d+)%\|.*?\| (\d+)/(\d+)', line)
-                            
-                        if tqdm_match:
-                            percent, current, total = map(int, tqdm_match.groups())
-                            active_tasks[task_id]["progress"] = percent
-                            active_tasks[task_id]["total_questions"] = total
-                            active_tasks[task_id]["completed_questions"] = current
-                    except Exception:
-                        pass
-                    
-            stdout_thread = threading.Thread(target=read_output, args=("stdout",))
-            stderr_thread = threading.Thread(target=read_output, args=("stderr",))
-            stdout_thread.daemon = True
-            stderr_thread.daemon = True
-            stdout_thread.start()
-            stderr_thread.start()
-            
-            # 等待进程完成
-            process.wait()
-            
-            # 等待输出读取完成
-            stdout_thread.join(timeout=1)
-            stderr_thread.join(timeout=1)
-            
-            # 更新任务状态
-            if process.returncode == 0:
-                active_tasks[task_id]["is_evaluation_complete"] = True
-                active_tasks[task_id]["status"] = "evaluation_complete"
+            # 加载数据集
+            if dataset in TEXT_DATASETS:
+                data = TextMCQ(dataset)
+            elif dataset in MULTIMODAL_DATASETS:
+                data = ImageMCQ(dataset)
+            elif dataset in LLMJUDGE_DATASETS:
+                data = LLMJudge(dataset)
                 
-                # 评测完成后检查完成状态
-                check_completion_status(task_id)
-            else:
-                active_tasks[task_id]["status"] = "failed"
-                
+            # 获取问题和答案
+            questions = data.questions
+            answers = data.answers if hasattr(data, 'answers') else []
+            choices = data.choices if hasattr(data, 'choices') else []
+            
+            # 应用题目数量限制
+            if question_limit and question_limit < len(questions):
+                questions = questions[:question_limit]
+                if answers:
+                    answers = answers[:question_limit]
+                if choices:
+                    choices = choices[:question_limit]
+            
+            # 更新任务信息
+            active_tasks[task_id]["questions"] = questions
+            active_tasks[task_id]["answers"] = answers
+            active_tasks[task_id]["choices"] = choices
+            active_tasks[task_id]["status"] = "human_evaluation"
+            active_tasks[task_id]["total_questions"] = len(questions)
+            
+            return redirect(url_for('human_evaluation', task_id=task_id))
         except Exception as e:
             active_tasks[task_id]["status"] = "failed"
+            active_tasks[task_id]["error"] = str(e)
+            print(f"启动人工评估失败: {str(e)}")
+            return redirect(url_for('task_detail', task_id=task_id))
+            
+    # 其他评估模式的处理逻辑
+    # ... existing code ...
+
+@app.route('/human-evaluation/<task_id>')
+def human_evaluation(task_id):
+    """显示人工评估页面"""
+    if task_id not in active_tasks:
+        return redirect(url_for('results'))
     
-    # 启动后台线程
-    task_thread = threading.Thread(target=run_task)
-    task_thread.daemon = True
-    task_thread.start()
+    task = active_tasks[task_id]
     
-    # 返回任务ID
-    return redirect(url_for('task_detail', task_id=task_id))
+    # 检查是否是人工评估任务
+    if task["eval_mode"] != "give_answers":
+        return redirect(url_for('task_detail', task_id=task_id))
+    
+    # 获取当前问题索引（允许通过URL参数直接跳转）
+    current_index = request.args.get('question_index', None)
+    if current_index is not None:
+        try:
+            current_index = int(current_index)
+            if current_index < 0 or current_index >= len(task["questions"]):
+                current_index = task.get("current_question_index", 0)
+        except ValueError:
+            current_index = task.get("current_question_index", 0)
+    else:
+        current_index = task.get("current_question_index", 0)
+    
+    # 获取当前页码
+    current_page = request.args.get('page', None)
+    if current_page is not None:
+        try:
+            current_page = int(current_page)
+        except ValueError:
+            current_page = (current_index // 50) + 1
+    else:
+        current_page = (current_index // 50) + 1
+    
+    # 检查是否所有问题已回答
+    if task.get("is_all_answered", False):
+        # 所有问题已回答完毕
+        calculate_human_evaluation_results(task_id)
+        return redirect(url_for('task_detail', task_id=task_id))
+    
+    # 初始化已回答问题集合（如果不存在）
+    if "answered_questions" not in task:
+        task["answered_questions"] = set()
+    
+    # 初始化用户选择记录（如果不存在）
+    if "user_selections" not in task:
+        task["user_selections"] = [None] * len(task["questions"])
+    
+    # 获取当前问题
+    current_question = task["questions"][current_index]
+    
+    # 渲染问题页面
+    return render_template('human_evaluation.html', 
+                          task=task,
+                          question=current_question,
+                          question_index=current_index,
+                          total_questions=len(task["questions"]))
+
+@app.route('/submit-answer/<task_id>', methods=['POST'])
+def submit_answer(task_id):
+    """接收用户提交的答案"""
+    if task_id not in active_tasks:
+        return redirect(url_for('results'))
+    
+    task = active_tasks[task_id]
+    
+    # 检查是否是人工评估任务
+    if task["eval_mode"] != "give_answers":
+        return redirect(url_for('task_detail', task_id=task_id))
+    
+    # 获取用户提交的答案
+    answer = request.form.get('answer')
+    question_index = int(request.form.get('question_index', 0))
+    
+    if not answer:
+        # 如果未选择答案，重定向回原题目
+        return redirect(url_for('human_evaluation', task_id=task_id, question_index=question_index))
+    
+    # 获取当前问题
+    current_question = task["questions"][question_index]
+    
+    # 记录用户答案
+    user_answer = {
+        "question_index": question_index,
+        "question": current_question,
+        "user_answer": answer,
+        "correct_answer": task["answers"][question_index],
+        "is_correct": answer.upper() == task["answers"][question_index].upper()
+    }
+    
+    # 标记题目为已回答
+    if "answered_questions" not in task:
+        task["answered_questions"] = set()
+    task["answered_questions"].add(question_index)
+    
+    # 记录用户选择
+    if "user_selections" not in task:
+        task["user_selections"] = [None] * len(task["questions"])
+    task["user_selections"][question_index] = answer
+    
+    # 如果之前没有记录过这个问题的答案，添加到answers列表
+    found = False
+    for i, ans in enumerate(task.get("user_answers", [])):
+        if ans["question_index"] == question_index:
+            task["user_answers"][i] = user_answer
+            found = True
+            break
+    
+    if not found:
+        if "user_answers" not in task:
+            task["user_answers"] = []
+        task["user_answers"].append(user_answer)
+    
+    # 更新进度
+    completed = len(task["answered_questions"])
+    total = len(task["questions"])
+    task["completed_questions"] = completed
+    task["progress"] = int(completed / total * 100)
+    
+    # 检查是否完成所有问题
+    if completed >= total:
+        task["is_all_answered"] = True
+        # 计算结果
+        calculate_human_evaluation_results(task_id)
+        return redirect(url_for('task_detail', task_id=task_id))
+    
+    # 移动到下一个问题（如果有）
+    next_index = question_index + 1
+    if next_index >= len(task["questions"]):
+        # 如果达到最后一题，返回第一个未回答的题目
+        for i in range(len(task["questions"])):
+            if i not in task["answered_questions"]:
+                next_index = i
+                break
+    
+    task["current_question_index"] = next_index
+    
+    # 继续下一个问题
+    return redirect(url_for('human_evaluation', task_id=task_id, question_index=next_index))
+
+# 计算人工评估结果的函数
+def calculate_human_evaluation_results(task_id):
+    """计算人工评估的准确率和结果"""
+    task = active_tasks[task_id]
+    
+    # 确保答案按题号排序
+    if "user_answers" in task:
+        task["user_answers"].sort(key=lambda x: x["question_index"])
+    
+    # 构建完整的答案列表（确保包含所有题目）
+    complete_answers = []
+    for i in range(len(task["questions"])):
+        # 查找该题目的答案
+        answer_found = False
+        for ans in task.get("user_answers", []):
+            if ans["question_index"] == i:
+                complete_answers.append(ans)
+                answer_found = True
+                break
+        
+        # 如果没有找到答案，添加空答案
+        if not answer_found:
+            complete_answers.append({
+                "question_index": i,
+                "question": task["questions"][i],
+                "user_answer": "未回答",
+                "correct_answer": task["answers"][i] if i < len(task.get("answers", [])) else "未知",
+                "is_correct": False
+            })
+    
+    # 更新排序后的答案列表
+    task["user_answers"] = complete_answers
+    
+    # 计算准确率（只考虑已回答的题目）
+    answered_questions = [ans for ans in complete_answers if ans["user_answer"] != "未回答"]
+    total_questions = len(answered_questions)
+    correct_answers = sum(1 for answer in answered_questions if answer.get("is_correct", False))
+    
+    # 计算准确率
+    accuracy = correct_answers / total_questions if total_questions > 0 else 0
+    
+    # 更新任务状态
+    task["is_evaluation_complete"] = True
+    task["status"] = "completed"
+    task["valid_questions"] = total_questions
+    task["valid_rate"] = total_questions / len(task["questions"]) if len(task["questions"]) > 0 else 0
+    task["is_valid_evaluation"] = total_questions >= (len(task["questions"]) * 0.8)  # 至少回答80%的题目
+    task["score"] = accuracy * 100  # 转换为百分比
+    
+    # 保存结果到文件
+    save_human_evaluation_results(task_id)
+
+# 保存人工评估结果
+def save_human_evaluation_results(task_id):
+    """将人工评估结果保存到文件"""
+    task = active_tasks[task_id]
+    
+    # 创建结果目录
+    results_dir = Path("results")
+    results_dir.mkdir(exist_ok=True)
+    
+    # 再次确保答案是按题号排序的
+    sorted_answers = sorted(task.get("user_answers", []), key=lambda x: x["question_index"])
+    
+    # 准备结果数据
+    result_data = {
+        "task_id": task_id,
+        "dataset": task["dataset"],
+        "model": task["model"],
+        "eval_mode": task["eval_mode"],
+        "completed_at": time.time(),
+        "answers": sorted_answers,
+        "total_questions": len(task["questions"]),
+        "completed_questions": len([a for a in sorted_answers if a["user_answer"] != "未回答"]),
+        "correct_answers": sum(1 for a in sorted_answers if a.get("is_correct", False)),
+        "accuracy": task["score"] / 100  # 保存为小数形式
+    }
+    
+    # 保存详细结果
+    result_file = results_dir / f"{task['dataset']}_human_result.json"
+    with open(result_file, 'w', encoding='utf-8') as f:
+        json.dump(result_data, f, ensure_ascii=False, indent=2)
+    
+    # 保存准确率结果
+    accuracy_file = results_dir / f"{task['dataset']}_human_result_accuracy.json"
+    with open(accuracy_file, 'w', encoding='utf-8') as f:
+        json.dump({"accuracy": task["score"] / 100}, f, ensure_ascii=False, indent=2)
+    
 
 @app.route('/task-detail/<task_id>')
 def task_detail(task_id):

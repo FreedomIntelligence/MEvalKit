@@ -6,7 +6,7 @@ model_map = {
 
 GENERAL_DATASETS = ["MMLU", "GPQA", "MMStar", "MT-Bench"]
 MEDICAL_KNOWLEDGE_DATASETS = ["CMB"]
-MEDICAL_ETHICS_DATASETS = ["knowledgeQA_2500", "EthicsCase"]
+MEDICAL_ETHICS_DATASETS = ["MedEthicMatrixMCQ"]
 
 DATASET_CATEGORIES = {
     "通用能力": GENERAL_DATASETS,
@@ -14,9 +14,10 @@ DATASET_CATEGORIES = {
     "医学伦理": MEDICAL_ETHICS_DATASETS
 }
 
-TEXT_DATASETS = ["MMLU", "GPQA", "CMB", "knowledgeQA_2500"]
+TEXT_DATASETS = ["MMLU", "GPQA", "CMB", "MedEthicMatrixMCQ"]
 IMAGE_DATASETS = ["MMStar"]
-LLMJUDGE_DATASETS = ["MT-Bench", "EthicsCase"]
+LLMJUDGE_DATASETS = ["MT-Bench"]
 
 TEXT_MODELS = ["gpt-3.5-turbo", "gpt-4o"]
 MULTIMODAL_MODELS = ["Qwen2-VL-7B-Instruct"]
+JUDGE_MODELS = ["gpt-4o"]

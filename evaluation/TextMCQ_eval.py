@@ -5,7 +5,6 @@ from pathlib import Path
 from openai import BadRequestError, AuthenticationError
 
 project_root = Path(__file__).resolve().parent.parent
-print(project_root)
 sys.path.append(str(project_root))
 # sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -232,8 +231,9 @@ def read_json_file(file_path):
         print(f"读取JSON文件时出错: {str(e)}")
         return None
 
+
 def evaluate_mcq(dataset_name: str, model_name: str, max_workers=64, 
-                 evaluate_mode: Literal["start_from_beginning", "resume_from_checkpoint"] = "start_from_beginning",
+                 evaluate_mode: Literal["start_from_beginning", "resume_from_checkpoint", "give_answers"] = "start_from_beginning",
                  question_limitation: int = 100):
     """
     并行评估文本问题
@@ -258,7 +258,7 @@ def evaluate_mcq(dataset_name: str, model_name: str, max_workers=64,
     
     # 初始化或加载结果
     results = []
-    
+
     if evaluate_mode == "start_from_beginning" or not os.path.exists(result_file):
         # 从头开始评测：初始化所有题目的结果为"Neglected"
         results = [{"id": i, "response": "Neglected"} for i in range(question_limitation)]
