@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>查看评测 - LLM评测平台</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .evaluation-card {
+            border: 1px solid #dee2e6;
+            border-radius: 0.5rem;
+            padding: 1.5rem;
+            margin-bottom: 1rem;
+            background-color: #fff;
+            transition: all 0.3s ease;
+        }
+        .evaluation-card:hover {
+            box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+        }
+        .evaluation-card.completed {
+            border-left: 4px solid #28a745;
+        }
+        .evaluation-card.incomplete {
+            border-left: 4px solid #ffc107;
+            cursor: pointer;
+        }
+        .evaluation-card.incomplete:hover {
+            background-color: #f8f9fa;
+        }
+        .user-info {
+            background-color: #f8f9fa;
+            padding: 0.5rem 1rem;
+            border-radius: 0.25rem;
+            margin-bottom: 1rem;
+        }
+        .status-badge {
+            font-size: 0.875rem;
+            padding: 0.25rem 0.5rem;
+        }
+        .score-display {
+            font-size: 1.25rem;
+            font-weight: bold;
+            color: #28a745;
+        }
+        .valid-ratio-display {
+            font-size: 1rem;
+            color: #6c757d;
+        }
+    </style>
+</head>
+<body>
+    <div class="container mt-4 mb-5">
+        <!-- 导航栏 -->
+        <nav class="navbar navbar-expand-lg navbar-light bg-light mb-4">
+            <div class="container-fluid">
+                <a class="navbar-brand" href="/">MEvalKit</a>
+                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                    <span class="navbar-toggler-icon"></span>
+                </button>
+                <div class="collapse navbar-collapse" id="navbarNav">
+                    <ul class="navbar-nav me-auto">
+                        <li class="nav-item"><a class="nav-link" href="/">总榜</a></li>
+                        <li class="nav-item"><a class="nav-link" href="/specific-leaderboard">分榜</a></li>
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle active" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown">
+                                评测管理
+                            </a>
+                            <ul class="dropdown-menu">
+                                <li><a class="dropdown-item" href="/new-evaluation">开始新评测</a></li>
+                                <li><a class="dropdown-item active" href="/view-evaluations">查看评测</a></li>
+                            </ul>
+                        </li>
+                    </ul>
+                    <!-- 用户信息 -->
+                    <div class="user-info">用户：{{ user_id }}</div>
+                </div>
+            </div>
+        </nav>
+        
+        <div class="row">
+            <div class="col-12">
+                <h1 class="mb-4">我的评测记录</h1>
+                
+                {% if evaluations %}
+                    <div class="row">
+                        {% for evaluation in evaluations %}
+                        <div class="col-12 col-md-6 col-lg-4">
+                            <div class="evaluation-card {% if evaluation.valid_ratio >= 0.95 %}completed{% else %}incomplete{% endif %}" 
+                                 {% if evaluation.valid_ratio < 0.95 %}onclick="continueEvaluation('{{ evaluation.business_id }}')"{% endif %}>
+                                <div class="d-flex justify-content-between align-items-start mb-2">
+                                    <h5 class="mb-0">{{ evaluation.business_id }}</h5>
+                                    <span class="status-badge badge {% if evaluation.valid_ratio >= 0.95 %}bg-success{% else %}bg-warning{% endif %}">
+                                        {% if evaluation.valid_ratio >= 0.95 %}已完成{% else %}进行中{% endif %}
+                                    </span>
+                                </div>
+                                
+                                <div class="valid-ratio-display mb-2">
+                                    有效率: {{ "%.1f"|format(evaluation.valid_ratio * 100) }}%
+                                </div>
+                                
+                                {% if evaluation.valid_ratio >= 0.95 %}
+                                    <div class="score-display">
+                                        得分: {{ "%.2f"|format(evaluation.score) }}
+                                    </div>
+                                {% else %}
+                                    <div class="text-muted">
+                                        <small>点击继续评测</small>
+                                    </div>
+                                {% endif %}
+                                
+                                <div class="text-muted mt-2">
+                                    <small>创建时间: {{ evaluation.created_time }}</small>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <div class="text-center py-5">
+                        <h4 class="text-muted">暂无评测记录</h4>
+                        <p class="text-muted">开始您的第一个评测吧！</p>
+                        <a href="/new-evaluation" class="btn btn-primary">开始新评测</a>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function continueEvaluation(businessId) {
+            if (confirm('确定要继续这个评测吗？')) {
+                // 显示加载状态
+                const card = event.currentTarget;
+                const originalContent = card.innerHTML;
+                card.innerHTML = '<div class="text-center"><div class="spinner-border" role="status"></div><div class="mt-2">正在继续评测...</div></div>';
+                card.style.pointerEvents = 'none';
+                
+                // 发送继续评测请求
+                fetch(`/continue-evaluation/${businessId}?user_id={{ user_id }}`, {
+                    method: 'GET'
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.result) {
+                        // 继续评测成功，跳转到任务详情页面
+                        window.location.href = data.data.redirect_url;
+                    } else {
+                        // 继续评测失败，恢复原状态
+                        alert('继续评测失败: ' + data.msg);
+                        card.innerHTML = originalContent;
+                        card.style.pointerEvents = 'auto';
+                    }
+                })
+                .catch(error => {
+                    console.error('继续评测出错:', error);
+                    alert('继续评测时发生错误，请重试');
+                    card.innerHTML = originalContent;
+                    card.style.pointerEvents = 'auto';
+                });
+            }
+        }
+    </script>
+</body>
+</html>

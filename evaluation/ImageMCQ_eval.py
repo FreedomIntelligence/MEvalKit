@@ -1,6 +1,7 @@
 import sys
 import os
 import json
+import time
 from pathlib import Path
 from openai import BadRequestError, AuthenticationError
 
@@ -13,6 +14,7 @@ from src.api.multimodal_api import *
 from src.utils.MCQ_constants import *
 from src.utils.model_and_dataset import *
 from src.utils.default_prompts import *
+from src.utils.model_and_dataset import *
 from tqdm import tqdm
 import concurrent.futures
 from typing import List, Tuple, Dict, Any, Literal
@@ -118,16 +120,32 @@ def shuffle_and_convert(dataset: ImageMCQ):
             continue
         else:
             # 单选题处理：先找到正确答案对应的选项内容
+            number_index = 0  # 默认值
             if answer != '' and answer_type == 'choice':
                 if isinstance(answer, int):
                     number_index = answer
+                elif isinstance(answer, str):
+                    if 'A' <= answer <= 'Z' and answer.isupper():
+                        number_index = ord(answer) - ord('A')
+                    elif 'a' <= answer <= 'z' and answer.islower():
+                        number_index = ord(answer) - ord('a')
+                    elif '0' <= answer <= '9':
+                        number_index = int(answer)
+                    else:
+                        # 如果答案不是标准格式，尝试直接匹配
+                        try:
+                            number_index = choice_list.index(answer)
+                        except ValueError:
+                            number_index = 0  # 如果找不到，使用默认值
+                else:
+                    number_index = 0  # 其他类型使用默认值
             else:
-                if 'A' <= answer <= 'Z' and answer.isupper():
-                    number_index = ord(answer) - ord('A')
-                elif 'a' <= answer <= 'z' and answer.islower():
-                    number_index = ord(answer) - ord('a')
-                elif '0' <= answer <= '9':
-                    number_index = int(answer)
+                number_index = 0  # 如果答案为空或类型不匹配，使用默认值
+            
+            # 确保number_index在有效范围内
+            if number_index >= len(choice_list):
+                number_index = 0
+            
             answer = choice_list[number_index]
             
             # 打乱选项顺序
@@ -193,33 +211,102 @@ def process_image_question(args):
     返回:
         问题索引、提取的答案和正确答案
     """
-    i, question, dataset_name, image, choices, answer, hint, language, model_name, assistant_prompt, question_type = args
+    i, dataset_name, image, background, case, question, question_type, choices, answer, hint, language, model_name, model_key, api_base = args
     
     try:
-        question_prompt = question + "\n"
-        if choices is not None:
-            for choice in choices:
-                question_prompt += f"{chr(65 + choices.index(choice))}. {choice}" + " "
-        if hint != "":
-            question_prompt += f"\nHint: {hint}"
+        if model_name == "stressTest":
+            extracted_response = "A"
+            time.sleep(10)
+        else:
+            case_prompt = ""
+            if case is not None:
+                if language == "en":
+                    case_prompt = f"Case of the question: {case}"
+                elif language == "zh":
+                    case_prompt = f"问题背景：{case}"
+            question_prompt = case_prompt + question + "\n"
+
+            if choices is not None:
+                for choice in choices:
+                    question_prompt += f"{chr(65 + choices.index(choice))}. {choice}" + " "
+            if hint != "":
+                question_prompt += f"\nHint: {hint}"
             
-        api = MultimodalAPI(model_name, assistant_prompt, question_prompt, image, 0)
-        response = api.generate_response()
-        
-        extracted_response = None
-        if question_type in SINGLE_CHOICE_LIST:
-            extracted_response = extract_answer(response, dataset_name)
-        elif question_type in MULTIPLE_CHOICE_LIST:
-            extracted_response = extract_multi_answer(response, dataset_name)
+            if background is not None and language == "en":
+                system_prompt = system_prompt + f"\nBackground: {background}"
+            elif background is not None and language == "zh":
+                system_prompt = system_prompt + f"\n任务背景：{background}"
+
+            if language == "en" and question_type == 'single':
+                system_prompt = MCQ_TEMPLATE_SINGLE_EN
+            elif language == "en" and question_type == "multiple":
+                system_prompt = MCQ_TEMPLATE_MULTIPLE_EN
+            elif language == "zh" and question_type == "single":
+                system_prompt = MCQ_TEMPLATE_SINGLE_ZH
+            elif language == "zh" and question_type == "multiple":
+                system_prompt = MCQ_TEMPLATE_MULTIPLE_ZH
+            api = MultimodalAPI(model_name, system_prompt, question_prompt, image, 0, model_key, api_base)
+            response = api.generate_response()
+            
+            extracted_response = None
+            if question_type in SINGLE_CHOICE_LIST:
+                extracted_response = extract_answer(response, dataset_name)
+            elif question_type in MULTIPLE_CHOICE_LIST:
+                extracted_response = extract_multi_answer(response, dataset_name)
             
         return i, extracted_response, answer
     except Exception as e:
         print(f"处理问题 {i} 时出错: {str(e)}")
         return i, "Neglected", answer
 
-def evaluate_imagemcq(dataset_name: str, model_name: str, max_workers=64,
-                     evaluate_mode: Literal["start_from_beginning", "resume_from_checkpoint"] = "start_from_beginning",
-                     question_limitation: int = 100):
+
+def evaluate_imagemcq_manual(
+        user_id: str = "",
+        dataset_name: str = "MMStar",
+        model_name: str = "gpt-4o",
+        business_id: str = "",
+        question_limitation: int = 100,
+        response_url: str = "",
+):
+    dataset = ImageMCQ(dataset_name)
+    dataset.max_score = dataset.dataset_info['max_score']
+    language = dataset.language
+
+
+    result_file = f"results/{user_id}/{business_id}_manual_result.json"
+    score_file = f"results/{user_id}/{business_id}_manual_score.json"
+
+    try:
+        response = requests.get(response_url, timeout=60)
+        response = response.json()
+    except Exception as e:
+        print(f"获取响应时出错: {str(e)}")
+        return None
+
+    result = []
+    
+    for i in range(question_limitation):
+        result.append({
+            "id": i,
+            "response": response[i]["response"]
+        })
+
+    write_json_file(result, result_file)
+
+    return calculate_valid_ratio_and_score(result_file, dataset.answers, score_file, max_score=dataset.max_score, business_id=business_id)
+            
+    
+
+def evaluate_imagemcq_automatic(
+        user_id: str = "",
+        dataset_name: str = "MMStar",
+        model_name: str = "gpt-3.5-turbo",
+        model_key: str = "",
+        api_base: str = "",
+        business_id: str = "",
+        question_limitation: int = 100,
+        max_workers: int = 64
+        ):
     """
     并行评估图像问题
     
@@ -227,91 +314,54 @@ def evaluate_imagemcq(dataset_name: str, model_name: str, max_workers=64,
         dataset_name: 数据集名称
         model_name: 模型名称
         max_workers: 最大并行工作线程数
-        evaluate_mode: 评估模式，"start_from_beginning"或"resume_from_checkpoint"
+        evaluate_mode: 评估模式，"automatic"自动评估，"manual"手动评估
     
     返回:
         评估结果和准确率
     """
     # 准备文件路径
-    result_file = f"results/{dataset_name}_{model_name}_result.json"
-    accuracy_file = f"results/{dataset_name}_{model_name}_result_accuracy.json"
+    result_file = f"results/{user_id}/{business_id}_result.json"
+    accuracy_file = f"results/{user_id}/{business_id}_score.json"
     
-    model = model_map[model_name]
     # 加载数据集
     dataset = ImageMCQ(dataset_name)
     dataset.choices, dataset.answers = shuffle_and_convert(dataset)
     language = dataset.language
-    
-    # 初始化或加载结果
-    results = []
-    
-    if evaluate_mode == "start_from_beginning" or not os.path.exists(result_file):
-        # 从头开始评测：初始化所有题目的结果为"Neglected"
-        results = [{"id": i, "response": "Neglected"} for i in range(question_limitation)]
-        # 写入初始结果文件
-        write_json_file(results, result_file)
-    else:
-        # 从断点处评测：加载现有结果
-        existing_results = read_json_file(result_file)
-        if existing_results:
-            results = existing_results
-        else:
-            # 如果文件存在但无法读取，则从头开始
-            results = [{"id": i, "response": "Neglected"} for i in range(question_limitation)]
-            write_json_file(results, result_file)
-    
-    # 准备参数列表
+    background = dataset.background
+
+    # 初始化结果
+    existing_results = read_json_file(result_file)
+    if not existing_results:
+        existing_results = [{"id": i, "response": "Neglected"} for i in range(question_limitation)]
+        write_json_file(existing_results, result_file)
     args_list = []
     for i in range(question_limitation):
-        # 检查是否需要处理此题
-        if evaluate_mode == "resume_from_checkpoint" and results[i]["response"] != "Neglected":
-            print(f"跳过已完成的问题 {i+1}")
+        if existing_results[i]['response'] != "Neglected":
             continue
-            
-        question = dataset.questions[i]
-        question_type = dataset.question_type_list[i]
-        image = dataset.image_list[i]
-        choices = None if dataset.choices is None else dataset.choices[i]
-        answer = "" if dataset.answers is None else dataset.answers[i]
-        hint = "" if dataset.hints is None else dataset.hints[i]
-        
-        # 选择适当的提示模板
-        if language == 'en' and question_type in SINGLE_CHOICE_LIST:
-            assistant_prompt = MCQ_TEMPLATE_SINGLE_EN
-        elif language == "en" and question_type in MULTIPLE_CHOICE_LIST:
-            assistant_prompt = MCQ_TEMPLATE_MULTIPLE_EN
-        elif language == "zh" and question_type in SINGLE_CHOICE_LIST:
-            assistant_prompt = MCQ_TEMPLATE_SINGLE_ZH
-        elif language == "zh" and question_type in MULTIPLE_CHOICE_LIST:
-            assistant_prompt = MCQ_TEMPLATE_MULTIPLE_ZH
-        
-        args_list.append((i, question, dataset_name, image, choices, answer, hint, language, model, assistant_prompt, question_type))
+        question = dataset.questions[i] if dataset.questions is not None else None
+        question_type = dataset.question_type_list[i] if dataset.question_type_list is not None else None
+        case = dataset.case[i] if dataset.case is not None else None
+        image = dataset.image_list[i] if dataset.image_list is not None else None
+        choices = dataset.choices[i] if dataset.choices is not None else None
+        answer = ""
+        hint = ""
+        if dataset.answers is not None:
+            answer = dataset.answers[i]
+        if dataset.hints is not None:
+            hint = dataset.hints[i]
+        args_list.append((i, dataset_name, image, background, case, question, question_type, choices, answer, hint, language, model_name, model_key, api_base))
     
-    # 如果没有需要处理的问题，直接计算准确率
-    if not args_list:
-        print("没有需要处理的问题，直接计算准确率")
-        return calculate_accuracy(results, dataset.answers, accuracy_file, dataset.question_type_list)
-    
-    # 并行执行
     with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = {executor.submit(process_image_question, args): args[0] for args in args_list}
-        
-        # 使用tqdm显示进度
-        for future in tqdm(concurrent.futures.as_completed(futures), total=len(futures), desc="处理图像问题"):
+        for future in tqdm(concurrent.futures.as_completed(futures), total=len(futures), desc=f"评测中"):
             idx, response, answer = future.result()
-            #print(response)
-            # 更新结果
-            results[idx]["response"] = response
-            
-            # 每完成一题就更新结果文件
-            write_json_file(results, result_file)
-            
-            #print(f"问题 {idx+1}: 回答: {response}")
+            existing_results[idx]["response"] = response
+            write_json_file(existing_results, result_file)
     
-    # 计算准确率并写入文件
-    return calculate_accuracy(results, dataset.answers, accuracy_file, dataset.question_type_list)
+    return calculate_valid_ratio_and_score(result_file, dataset.answers, accuracy_file, max_score=dataset.max_score, business_id=business_id)
 
-def calculate_accuracy(results, answers, accuracy_file, question_type_list=None, neglected_threshold=0.05):
+
+def calculate_valid_ratio_and_score(result_file, answers, accuracy_file, question_type_list=None, neglected_threshold=0.05, max_score=1, business_id=""):
     """
     计算准确率并写入文件
     
@@ -321,11 +371,16 @@ def calculate_accuracy(results, answers, accuracy_file, question_type_list=None,
         accuracy_file: 准确率结果文件路径
         question_type_list: 问题类型列表，用于区分单选和多选题
         neglected_threshold: Neglected题目的最大比例阈值，超过此阈值则不计算准确率
+        
+    返回:
+        结果列表和准确率
     """
     # 计算Neglected题目的比例
+    results = read_json_file(result_file)
     total_questions = len(results)
     neglected_count = sum(1 for result in results if result["response"] == "Neglected")
     neglected_ratio = neglected_count / total_questions if total_questions > 0 else 0
+    valid_ratio = 1 - neglected_ratio
     
     # 检查Neglected题目比例是否超过阈值
     if neglected_ratio > neglected_threshold:
@@ -385,22 +440,19 @@ def calculate_accuracy(results, answers, accuracy_file, question_type_list=None,
                     correct_count += 1
     
     # 计算准确率（基于有效题目数量）
-    accuracy = correct_count / valid_count if valid_count > 0 else 0
-    print(f"准确率: {accuracy:.4f} ({correct_count}/{valid_count})")
-    print(f"有效题目: {valid_count}/{total_questions} (Neglected: {neglected_count}题, {neglected_ratio:.2%})")
+    raw_score = correct_count / valid_count * 100 if valid_count > 0 else 0
+    score = raw_score / max_score * 100
     
     # 写入准确率文件
     accuracy_data = {
-        "accuracy": accuracy,
-        "correct_count": correct_count,
-        "valid_count": valid_count,
-        "total_count": total_questions,
-        "neglected_count": neglected_count,
-        "neglected_ratio": neglected_ratio
+        "business_id": business_id,
+        "raw_score": raw_score,
+        "score": score,
+        "valid_ratio": valid_ratio
     }
     write_json_file(accuracy_data, accuracy_file)
     
-    return results, accuracy
+    return valid_ratio, score
             
 if __name__ == "__main__":
     load_dotenv()
@@ -408,4 +460,4 @@ if __name__ == "__main__":
     # responses, accuracy = evaluate_imagemcq("MMStar", "Pro/Qwen/Qwen2.5-VL-7B-Instruct", evaluate_mode="start_from_beginning")
     
     # 从断点处继续评测
-    responses, accuracy = evaluate_imagemcq("MMStar", "Pro/Qwen/Qwen2-VL-7B-Instruct", evaluate_mode="resume_from_checkpoint")
+    responses, accuracy = evaluate_imagemcq_automatic("MMStar", "Pro/Qwen/Qwen2-VL-7B-Instruct", evaluate_mode="give_answers")

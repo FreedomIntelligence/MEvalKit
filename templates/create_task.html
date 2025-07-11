@@ -42,7 +42,7 @@
         <!-- 导航栏 -->
         <nav class="navbar navbar-expand-lg navbar-light bg-light mb-4">
             <div class="container-fluid">
-                <a class="navbar-brand" href="/">LLM评测平台</a>
+                <a class="navbar-brand" href="/">MEvalKit</a>
                 <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
                     <span class="navbar-toggler-icon"></span>
                 </button>
@@ -52,13 +52,10 @@
                             <a class="nav-link" href="/">总榜</a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link" href="/specific_leaderboard">分榜</a>
+                            <a class="nav-link" href="/specific-leaderboard">分榜</a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link" href="/results">评测任务</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link active" href="/create_task">创建任务</a>
+                            <a class="nav-link active" href="/create-task">创建任务</a>
                         </li>
                     </ul>
                 </div>
@@ -101,24 +98,62 @@
                                 零样本评估
                             {% elif mode == "few-shot" %}
                                 少样本评估
-                            {% elif mode == "give_answers" %}
-                                人工评估
                             {% else %}
                                 {{ mode }}
                             {% endif %}
                         </option>
                         {% endfor %}
                     </select>
-                    <div id="human-eval-notice" class="form-text text-danger mt-2 d-none">
-                        注意：人工评估模式下无需选择模型，您将手动作答所有题目。
-                    </div>
                 </div>
                 
                 <div class="form-section" id="model-selection-section">
                     <h4>选择评测模型</h4>
-                    <select class="form-select" id="model-select" name="model">
-                        <option value="" disabled selected>请先选择数据集</option>
-                    </select>
+                    
+                    <!-- 模型类型选择 -->
+                    <div class="mb-3">
+                        <label for="model-type-select" class="form-label">模型类型</label>
+                        <select class="form-select" id="model-type-select" name="model_type">
+                            <option value="default" selected>default</option>
+                            <option value="vllm">vllm</option>
+                            <option value="openai">openai</option>
+                            <option value="anthropic">anthropic</option>
+                            <option value="zhipu">zhipu</option>
+                            <option value="doubao">doubao</option>
+                        </select>
+                        <div class="form-text">选择模型的类型，用于确定如何加载和调用模型</div>
+                    </div>
+                    
+                    <!-- 模型名称选择 -->
+                    <div class="mb-3">
+                        <label for="model-select" class="form-label">模型名称</label>
+                        <input type="text" class="form-control" id="model-select" name="model" 
+                               placeholder="请输入模型名称，如 gpt-4、claude-3、qwen2.5-7b 等">
+                        <div class="form-text">请输入要评测的模型名称</div>
+                    </div>
+                    
+                    <!-- API接口路径输入 -->
+                    <div class="mb-3">
+                        <label for="api-base" class="form-label">API接口路径（可选）</label>
+                        <input type="text" class="form-control" id="api-base" name="api_base" 
+                               placeholder="API接口地址，如 http://localhost:8000/v1">
+                        <div class="form-text">如果是自定义模型，请输入API接口地址</div>
+                    </div>
+                    
+                    <!-- 模型密钥输入 -->
+                    <div class="mb-3">
+                        <label for="model-key" class="form-label">模型密钥（可选）</label>
+                        <input type="password" class="form-control" id="model-key" name="model_key" 
+                               placeholder="API密钥或访问令牌">
+                        <div class="form-text">如果是API模型，请输入访问密钥</div>
+                    </div>
+                </div>
+                
+                <!-- 业务ID输入框 -->
+                <div class="form-section">
+                    <h4>业务ID</h4>
+                    <input type="text" class="form-control" id="business-id" name="business_id" 
+                           value="MMLUdoubao03" placeholder="请输入业务ID">
+                    <div class="form-text">用于标识评测任务的业务ID，默认为 MMLUdoubao03</div>
                 </div>
                 
                 <!-- 新增：评测数量输入框 -->
@@ -134,11 +169,8 @@
                 <!-- LLMJudge专用选项，默认隐藏 -->
                 <div class="form-section" id="judge-model-section" style="display: none;">
                     <h4>选择判断模型</h4>
-                    <select class="form-select" id="judgment-model-select" name="judgment_model">
-                        {% for model in judge_models %}
-                        <option value="{{ model }}">{{ model }}</option>
-                        {% endfor %}
-                    </select>
+                    <input type="text" class="form-control" id="judgment-model-select" name="judgment_model" 
+                           placeholder="请输入判断模型名称，如 gpt-4、claude-3 等">
                     <div class="form-text">用于评判模型回答质量的裁判模型</div>
                 </div>
                 
@@ -154,22 +186,17 @@
         // 处理评估模式变化
         function handleEvalModeChange() {
             const evalModeSelect = document.getElementById('eval-mode-select');
-            const modelSelect = document.getElementById('model-select');
+            const modelInput = document.getElementById('model-select');
             const modelSection = document.getElementById('model-selection-section');
-            const humanEvalNotice = document.getElementById('human-eval-notice');
             
             if (evalModeSelect.value === 'give_answers') {
-                // 人工评估模式
+                // 人工评估模式，隐藏模型选择部分
                 modelSection.classList.add('disabled-section');
-                modelSelect.disabled = true;
-                humanEvalNotice.classList.remove('d-none');
-                // 设置一个占位符值，后端会忽略
-                modelSelect.value = 'human_evaluator';
+                modelInput.disabled = true;
             } else {
-                // 其他评估模式
+                // 其他模式，显示模型选择部分
                 modelSection.classList.remove('disabled-section');
-                modelSelect.disabled = false;
-                humanEvalNotice.classList.add('d-none');
+                modelInput.disabled = false;
             }
         }
         
@@ -196,21 +223,21 @@
         
         // 表单提交验证
         document.getElementById('evaluationForm').addEventListener('submit', function(event) {
+            event.preventDefault(); // 阻止默认提交
+            
             const evalMode = document.getElementById('eval-mode-select').value;
             const datasetSelect = document.getElementById('dataset-select');
-            const modelSelect = document.getElementById('model-select');
+            const modelInput = document.getElementById('model-select');
             
             // 检查是否选择了数据集
             if (!datasetSelect.value) {
                 alert('请选择评测数据集');
-                event.preventDefault();
                 return;
             }
             
-            // 如果不是人工评估，检查是否选择了模型
-            if (evalMode !== 'give_answers' && !modelSelect.value) {
-                alert('请选择评测模型');
-                event.preventDefault();
+            // 如果不是人工评估，检查是否输入了模型名称
+            if (evalMode !== 'give_answers' && !modelInput.value.trim()) {
+                alert('请输入评测模型名称');
                 return;
             }
             
@@ -220,44 +247,43 @@
                 const numValue = Number(questionLimit);
                 if (isNaN(numValue) || !Number.isInteger(numValue) || numValue <= 0) {
                     if (!confirm('您输入的题目数量无效，将评测全部题目。是否继续？')) {
-                        event.preventDefault();
                         return;
                     }
                 }
             }
-        });
-        
-        // 数据集变更时更新模型选项
-        document.getElementById('dataset-select').addEventListener('change', function() {
-            const dataset = this.value;
-            const modelSelect = document.getElementById('model-select');
             
-            // 清除现有选项
-            modelSelect.innerHTML = '';
+            // 显示加载状态
+            const submitButton = document.querySelector('button[type="submit"]');
+            const originalText = submitButton.textContent;
+            submitButton.textContent = '创建中...';
+            submitButton.disabled = true;
             
-            // 根据数据集类型添加相应的模型选项
-            if (dataset) {
-                let modelOptions = [];
-                
-                if ({{ text_datasets|tojson }}.includes(dataset)) {
-                    // 文本数据集模型
-                    modelOptions = {{ text_models|tojson }};
-                } else if ({{ multimodal_datasets|tojson }}.includes(dataset)) {
-                    // 多模态数据集模型
-                    modelOptions = {{ multimodal_models|tojson }};
-                } else if ({{ llmjudge_datasets|tojson }}.includes(dataset)) {
-                    // 判断数据集模型
-                    modelOptions = {{ judge_models|tojson }};
+            // 收集表单数据
+            const formData = new FormData(this);
+            
+            // 发送请求
+            fetch('/run-evaluation', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.result) {
+                    // 创建成功，自动跳转到任务详情页面
+                    window.location.href = data.data.redirect_url;
+                } else {
+                    // 创建失败，显示错误信息
+                    alert('创建任务失败: ' + data.msg);
+                    submitButton.textContent = originalText;
+                    submitButton.disabled = false;
                 }
-                
-                // 添加模型选项
-                modelSelect.appendChild(new Option('请选择模型', '', true, true));
-                modelOptions.forEach(model => {
-                    modelSelect.appendChild(new Option(model, model));
-                });
-                
-                modelSelect.disabled = document.getElementById('eval-mode-select').value === 'give_answers';
-            }
+            })
+            .catch(error => {
+                console.error('提交表单出错:', error);
+                alert('提交表单时发生错误，请重试');
+                submitButton.textContent = originalText;
+                submitButton.disabled = false;
+            });
         });
         
         // 页面加载时初始化

@@ -1,0 +1,123 @@
+# MEvalKit 快速构建 Makefile
+# 专注于构建速度优化
+
+.PHONY: help build-fast build-prod-fast clean-fast cache-fast prepull-fast
+
+# 默认目标
+help:
+	@echo "MEvalKit 快速构建命令"
+	@echo ""
+	@echo "可用命令:"
+	@echo "  build-fast      - 快速构建开发镜像"
+	@echo "  build-prod-fast - 快速构建生产镜像"
+	@echo "  clean-fast      - 快速清理构建缓存"
+	@echo "  cache-fast      - 优化构建缓存"
+	@echo "  prepull-fast    - 预拉取基础镜像"
+	@echo "  up-fast         - 快速启动服务"
+	@echo "  down-fast       - 快速停止服务"
+
+# 快速构建开发镜像
+build-fast:
+	@echo "🚀 快速构建开发镜像..."
+	@export DOCKER_BUILDKIT=1 && \
+	export COMPOSE_DOCKER_CLI_BUILD=1 && \
+	docker build \
+		--file Dockerfile \
+		--tag mevalkit:dev-fast \
+		--cache-from mevalkit:dev \
+		--build-arg BUILDKIT_INLINE_CACHE=1 \
+		--progress=plain \
+		.
+
+# 快速构建生产镜像
+build-prod-fast:
+	@echo "🚀 快速构建生产镜像..."
+	@export DOCKER_BUILDKIT=1 && \
+	export COMPOSE_DOCKER_CLI_BUILD=1 && \
+	docker build \
+		--file Dockerfile.prod \
+		--tag mevalkit:prod-fast \
+		--target production \
+		--cache-from mevalkit:prod \
+		--build-arg BUILDKIT_INLINE_CACHE=1 \
+		--progress=plain \
+		.
+
+# 快速清理构建缓存
+clean-fast:
+	@echo "🧹 快速清理构建缓存..."
+	@docker builder prune -f
+	@docker system prune -f
+
+# 优化构建缓存
+cache-fast:
+	@echo "⚡ 优化构建缓存..."
+	@mkdir -p /tmp/docker-buildx-cache
+	@export BUILDX_CACHE_DIR="/tmp/docker-buildx-cache"
+
+# 预拉取基础镜像
+prepull-fast:
+	@echo "📥 预拉取基础镜像..."
+	@docker pull python:3.9-slim &
+	@docker pull nginx:alpine &
+	@wait
+
+# 快速启动服务
+up-fast:
+	@echo "🚀 快速启动服务..."
+	@docker-compose up -d
+
+# 快速停止服务
+down-fast:
+	@echo "🛑 快速停止服务..."
+	@docker-compose down
+
+# 一键快速构建和启动
+deploy-fast: prepull-fast cache-fast build-fast up-fast
+	@echo "✅ 快速部署完成！"
+
+# 生产环境快速部署
+deploy-prod-fast: prepull-fast cache-fast build-prod-fast
+	@echo "✅ 生产镜像快速构建完成！"
+
+# 并行构建（需要多个CPU核心）
+build-parallel:
+	@echo "🔄 并行构建镜像..."
+	@export DOCKER_BUILDKIT=1 && \
+	export COMPOSE_DOCKER_CLI_BUILD=1 && \
+	docker build \
+		--file Dockerfile \
+		--tag mevalkit:parallel \
+		--build-arg BUILDKIT_INLINE_CACHE=1 \
+		--build-arg BUILDKIT_STEP_LOG_MAX_SIZE=10485760 \
+		--build-arg BUILDKIT_STEP_LOG_MAX_SPEED=10485760 \
+		--progress=plain \
+		.
+
+# 使用构建脚本
+build-script:
+	@echo "📜 使用构建脚本..."
+	@chmod +x build_image.sh
+	@./build_image.sh latest dev
+
+# 构建脚本生产版本
+build-script-prod:
+	@echo "📜 使用构建脚本（生产版本）..."
+	@chmod +x build_image.sh
+	@./build_image.sh latest prod
+
+# 显示构建信息
+info:
+	@echo "📊 构建信息:"
+	@echo "  Docker版本: $(shell docker --version)"
+	@echo "  Docker Compose版本: $(shell docker-compose --version)"
+	@echo "  BuildKit状态: $(shell docker buildx version 2>/dev/null || echo '未启用')"
+	@echo "  可用镜像:"
+	@docker images mevalkit 2>/dev/null || echo "  无mevalkit镜像"
+
+# 性能测试
+benchmark:
+	@echo "⏱️  开始性能测试..."
+	@echo "构建开始时间: $(shell date)"
+	@time make build-fast
+	@echo "构建结束时间: $(shell date)" 

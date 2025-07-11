@@ -1,0 +1,126 @@
+# MEvalKit Docker 管理 Makefile
+# 使用方法: make -f Makefile.docker <target>
+
+.PHONY: help build build-prod up up-prod down restart logs clean test ssl
+
+# 默认目标
+help:
+	@echo "MEvalKit Docker 管理命令"
+	@echo ""
+	@echo "可用命令:"
+	@echo "  build      - 构建开发环境镜像"
+	@echo "  build-prod - 构建生产环境镜像"
+	@echo "  up         - 启动开发环境服务"
+	@echo "  up-prod    - 启动生产环境服务"
+	@echo "  down       - 停止所有服务"
+	@echo "  restart    - 重启所有服务"
+	@echo "  logs       - 查看服务日志"
+	@echo "  clean      - 清理Docker资源"
+	@echo "  test       - 运行部署测试"
+	@echo "  ssl        - 生成SSL证书"
+	@echo "  help       - 显示此帮助信息"
+
+# 构建开发环境镜像
+build:
+	@echo "构建开发环境镜像..."
+	docker build -t mevalkit:dev .
+
+# 构建生产环境镜像
+build-prod:
+	@echo "构建生产环境镜像..."
+	docker build -f Dockerfile.prod -t mevalkit:prod .
+
+# 启动开发环境服务
+up:
+	@echo "启动开发环境服务..."
+	docker-compose up -d
+
+# 启动生产环境服务
+up-prod:
+	@echo "启动生产环境服务..."
+	docker-compose -f docker-compose.prod.yml up -d
+
+# 停止所有服务
+down:
+	@echo "停止所有服务..."
+	docker-compose down
+	docker-compose -f docker-compose.prod.yml down
+
+# 重启所有服务
+restart:
+	@echo "重启所有服务..."
+	docker-compose restart
+
+# 查看服务日志
+logs:
+	@echo "查看服务日志..."
+	docker-compose logs -f
+
+# 清理Docker资源
+clean:
+	@echo "清理Docker资源..."
+	docker-compose down -v
+	docker-compose -f docker-compose.prod.yml down -v
+	docker system prune -f
+	docker image prune -a -f
+
+# 运行部署测试
+test:
+	@echo "运行部署测试..."
+	./test-docker.sh
+
+# 生成SSL证书
+ssl:
+	@echo "生成SSL证书..."
+	./generate-ssl.sh
+
+# 一键部署开发环境
+deploy-dev: build up test
+	@echo "开发环境部署完成！"
+
+# 一键部署生产环境
+deploy-prod: ssl build-prod up-prod test
+	@echo "生产环境部署完成！"
+
+# 备份数据
+backup:
+	@echo "备份数据..."
+	@mkdir -p backups
+	docker run --rm -v mevalkit_data:/data -v $(PWD)/backups:/backup alpine tar czf /backup/data_$(shell date +%Y%m%d_%H%M%S).tar.gz -C /data .
+
+# 恢复数据
+restore:
+	@echo "恢复数据..."
+	@if [ -z "$(BACKUP_FILE)" ]; then \
+		echo "请指定备份文件: make restore BACKUP_FILE=backups/data_20231201_120000.tar.gz"; \
+		exit 1; \
+	fi
+	docker run --rm -v mevalkit_data:/data -v $(PWD)/backups:/backup alpine tar xzf /backup/$(BACKUP_FILE) -C /data
+
+# 查看容器状态
+status:
+	@echo "容器状态:"
+	docker-compose ps
+
+# 进入容器
+shell:
+	@echo "进入容器..."
+	docker-compose exec mevalkit bash
+
+# 更新镜像
+update:
+	@echo "更新镜像..."
+	git pull origin main
+	make build-prod
+	make restart
+
+# 监控资源使用
+monitor:
+	@echo "监控资源使用..."
+	docker stats
+
+# 检查健康状态
+health:
+	@echo "检查健康状态..."
+	@curl -f http://localhost:5000/ || echo "应用未响应"
+	@curl -f http://localhost:5000/apidocs/ || echo "API文档未响应" 

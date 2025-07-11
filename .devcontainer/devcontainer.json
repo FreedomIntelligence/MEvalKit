@@ -1,0 +1,32 @@
+{
+    "name": "MEvalKit Development",
+    "dockerComposeFile": "../docker-compose.yml",
+    "service": "mevalkit",
+    "workspaceFolder": "/app",
+    
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "ms-python.python",
+                "ms-python.black-formatter",
+                "ms-python.flake8",
+                "ms-python.isort",
+                "ms-toolsai.jupyter",
+                "ms-vscode.vscode-json"
+            ],
+            "settings": {
+                "python.defaultInterpreterPath": "/usr/local/bin/python",
+                "python.linting.enabled": true,
+                "python.linting.flake8Enabled": true,
+                "python.formatting.provider": "black",
+                "terminal.integrated.shell.linux": "/bin/bash"
+            }
+        }
+    },
+    
+    "forwardPorts": [5000],
+    "postCreateCommand": "pip install -r requirements.txt",
+    
+    "remoteUser": "root",
+    "shutdownAction": "stopCompose"
+} 

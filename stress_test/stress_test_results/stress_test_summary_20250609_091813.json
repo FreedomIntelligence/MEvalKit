@@ -1,0 +1,57 @@
+{
+  "test_config": {
+    "concurrent_levels": [
+      1,
+      4,
+      8,
+      16,
+      32
+    ],
+    "tasks_per_level": 50,
+    "avg_task_time": 5.0
+  },
+  "summary": [
+    {
+      "concurrent_level": 1,
+      "success_rate": 100.0,
+      "avg_execution_time": 21.97327651500702,
+      "throughput": 0.045509193038865525,
+      "std_deviation": 0.8550182692370156,
+      "total_test_time": 1098.679116487503
+    },
+    {
+      "concurrent_level": 4,
+      "success_rate": 100.0,
+      "avg_execution_time": 21.801809101104737,
+      "throughput": 0.17646711250736005,
+      "std_deviation": 0.3008505014288315,
+      "total_test_time": 283.3389139175415
+    },
+    {
+      "concurrent_level": 8,
+      "success_rate": 100.0,
+      "avg_execution_time": 21.904813394546508,
+      "throughput": 0.3279509853868017,
+      "std_deviation": 0.4912027979800327,
+      "total_test_time": 152.46180748939514
+    },
+    {
+      "concurrent_level": 16,
+      "success_rate": 100.0,
+      "avg_execution_time": 22.085850987434387,
+      "throughput": 0.5705735885126401,
+      "std_deviation": 0.2711263963988978,
+      "total_test_time": 87.63111543655396
+    },
+    {
+      "concurrent_level": 32,
+      "success_rate": 100.0,
+      "avg_execution_time": 22.38051873207092,
+      "throughput": 1.1126560304742728,
+      "std_deviation": 0.306896596354922,
+      "total_test_time": 44.93751764297485
+    }
+  ],
+  "total_duration": 1677.0678522586823,
+  "timestamp": "2025-06-09T09:18:13.723712"
+}

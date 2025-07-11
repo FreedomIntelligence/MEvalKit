@@ -9,11 +9,13 @@ from dotenv import load_dotenv
 import random
 import time
 class TextAPI:
-    def __init__(self, model_name: str, system_prompt: str, user_prompt: str, temperature: float):
+    def __init__(self, model_name: str, system_prompt: str, user_prompt: str, temperature: float, model_key: str, api_base: str = ""):
         self.model_name = model_name
         self.system_prompt = system_prompt
         self.user_prompt = user_prompt
         self.temperature = temperature
+        os.environ['OPENAI_API_KEY'] = model_key if model_key != "" else os.environ['OPENAI_API_KEY']
+        os.environ['OPENAI_API_BASE'] = api_base if api_base != "" else os.environ['OPENAI_API_BASE']
 
 
     def generate_response(self):
@@ -53,6 +55,7 @@ class TextAPI:
             response_data = response.json()
             #print(response_data)
             if "error" in response_data:
+                print(response_data)
                 return "Neglected"
             else:
                 return response_data['choices'][0]['message']['content']

@@ -10,16 +10,14 @@ import time
 import random
 
 class MultimodalAPI:
-    def __init__(self, model_name: str, system_prompt: str, user_prompt: str, image_input, temperature: float):
+    def __init__(self, model_name: str, system_prompt: str, user_prompt: str, image_input, temperature: float, model_key: str, api_base: str = ""):
         self.model_name = model_name
         self.system_prompt = system_prompt
         self.user_prompt = user_prompt
         self.image_input = image_input
         self.temperature = temperature
-
-        self.max_retries = 5
-        self.initial_retry_delay = 1.0
-        self.max_retry_delay = 30.0
+        os.environ['OPENAI_API_KEY'] = model_key if model_key != "" else os.environ['OPENAI_API_KEY']
+        os.environ['OPENAI_API_BASE'] = api_base if api_base != "" else os.environ['OPENAI_API_BASE']
 
     def handle_image_url(self):
         if isinstance(self.image_input, str) and self.image_input.startswith(("http://", "https://")):

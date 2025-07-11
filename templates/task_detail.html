@@ -110,6 +110,12 @@
             color: #6c757d;
             font-size: 0.9rem;
         }
+        .user-info {
+            background-color: #f8f9fa;
+            padding: 0.5rem 1rem;
+            border-radius: 0.25rem;
+            margin-bottom: 1rem;
+        }
     </style>
 </head>
 <body>
@@ -117,25 +123,25 @@
         <!-- 导航栏 -->
         <nav class="navbar navbar-expand-lg navbar-light bg-light mb-4">
             <div class="container-fluid">
-                <a class="navbar-brand" href="/">LLM评测平台</a>
-                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                <a class="navbar-brand" href="/">MEvalKit</a>
+                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
                     <span class="navbar-toggler-icon"></span>
                 </button>
                 <div class="collapse navbar-collapse" id="navbarNav">
-                    <ul class="navbar-nav">
-                        <li class="nav-item">
-                            <a class="nav-link" href="/">总榜</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link" href="/specific-leaderboard">分榜</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link active" href="/results">评测任务</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link" href="/create-task">创建任务</a>
+                    <ul class="navbar-nav me-auto">
+                        <li class="nav-item"><a class="nav-link" href="/">总榜</a></li>
+                        <li class="nav-item"><a class="nav-link" href="/specific-leaderboard">分榜</a></li>
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle active" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown">
+                                评测管理
+                            </a>
+                            <ul class="dropdown-menu">
+                                <li><a class="dropdown-item" href="/new-evaluation">开始新评测</a></li>
+                                <li><a class="dropdown-item" href="/view-evaluations">查看评测</a></li>
+                            </ul>
                         </li>
                     </ul>
+                    <div class="user-info">用户：{{ user_id }}</div>
                 </div>
             </div>
         </nav>
@@ -171,7 +177,7 @@
                     </div>
                     <div class="col-md-6">
                         <p><strong>模型:</strong> {{ task.model }}</p>
-                        <p><strong>评估模式:</strong> {{ task.eval_mode }}</p>
+                        <p><strong>评估模式:</strong> {{ task.evaluation_mode }}</p>
                         {% if task.judgment_model %}
                         <p><strong>判别模型:</strong> {{ task.judgment_model }}</p>
                         {% endif %}
@@ -186,11 +192,30 @@
                     </div>
                     <div id="phaseEval" class="phase-step {% if task.status == 'running' %}phase-active{% elif task.status != 'pending' %}phase-completed{% endif %}">
                         <div class="phase-circle">2</div>
-                        <div class="phase-label">评测</div>
+                        <div class="phase-label">评测中</div>
                     </div>
                     <div id="phaseComplete" class="phase-step {% if task.status in ['completed', 'incomplete'] %}phase-completed{% elif task.status == 'evaluation_complete' %}phase-active{% endif %}">
                         <div class="phase-circle">3</div>
                         <div class="phase-label">完成</div>
+                    </div>
+                </div>
+                
+                <!-- 多轮评测信息 -->
+                <div id="roundInfo" class="mt-3 mb-3" style="display: none;">
+                    <div class="alert alert-info">
+                        <h6 class="alert-heading">多轮评测进度</h6>
+                        <p class="mb-2">当前正在进行多轮评测，目标：95%题目有效回答</p>
+                        <div class="row">
+                            <div class="col-md-4">
+                                <strong>当前轮次:</strong> <span id="currentRound">-</span>
+                            </div>
+                            <div class="col-md-4">
+                                <strong>有效比例:</strong> <span id="validRatio">-</span>
+                            </div>
+                            <div class="col-md-4">
+                                <strong>目标比例:</strong> 95%
+                            </div>
+                        </div>
                     </div>
                 </div>
                 
@@ -223,6 +248,32 @@
                     <p id="completionDetail" class="text-muted mt-1">已完成: 0 / 0 题</p>
                 </div>
 
+                <!-- 错误信息显示区域 -->
+                <div id="errorContainer" class="mt-4" style="display: none;">
+                    <h5 class="mb-3 text-danger">错误信息</h5>
+                    <div class="card border-danger">
+                        <div class="card-header bg-danger text-white">
+                            <i class="fas fa-exclamation-triangle me-2"></i>任务执行失败
+                        </div>
+                        <div class="card-body">
+                            <div class="mb-3">
+                                <h6 class="text-danger">错误摘要:</h6>
+                                <p id="errorMessage" class="text-danger"></p>
+                            </div>
+                            <div class="mb-3">
+                                <h6 class="text-danger">详细错误信息:</h6>
+                                <div class="bg-light p-3 rounded">
+                                    <pre id="errorDetails" class="text-danger mb-0" style="white-space: pre-wrap; font-size: 0.9rem;"></pre>
+                                </div>
+                            </div>
+                            <div class="text-center mt-3">
+                                <a href="/create-task" class="btn btn-primary me-2">重新创建任务</a>
+                                <a href="/" class="btn btn-secondary">返回首页</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- 评测结果显示区域 - 简化版 -->
                 <div id="evaluationResults" class="mt-4" style="display: none;">
                     <h5 class="mb-3">评测结果</h5>
@@ -231,9 +282,14 @@
                             <div class="row">
                                 <div class="col-md-6">
                                     <p><strong>评测状态:</strong> <span id="evaluationStatus" class="badge rounded-pill"></span></p>
+                                    <p><strong>总题目数:</strong> <span id="totalQuestions">-</span></p>
+                                    <p><strong>有效题目数:</strong> <span id="validQuestions">-</span></p>
+                                    <p><strong>有效率:</strong> <span id="validRate">-</span></p>
                                 </div>
                                 <div class="col-md-6">
                                     <p id="accuracyContainer"><strong>准确率:</strong> <span id="accuracy">-</span></p>
+                                    <p id="rawScoreContainer"><strong>原始分数:</strong> <span id="rawScore">-</span></p>
+                                    <p id="finalScoreContainer"><strong>最终分数:</strong> <span id="finalScore">-</span></p>
                                     <p id="retryMessage" style="display: none;" class="text-danger">请再次进行评测</p>
                                 </div>
                             </div>
@@ -257,6 +313,16 @@
             const completionProgress = document.getElementById('completionProgress');
             const completionPercent = document.getElementById('completionPercent');
             const completionDetail = document.getElementById('completionDetail');
+            
+            // 错误信息显示元素
+            const errorContainer = document.getElementById('errorContainer');
+            const errorMessage = document.getElementById('errorMessage');
+            const errorDetails = document.getElementById('errorDetails');
+            
+            // 多轮评测信息元素
+            const roundInfo = document.getElementById('roundInfo');
+            const currentRound = document.getElementById('currentRound');
+            const validRatio = document.getElementById('validRatio');
             
             // tqdm风格进度条元素
             const tqdmPercent = document.getElementById('tqdmPercent');
@@ -404,6 +470,20 @@
                         // 更新阶段指示器
                         updatePhaseIndicator(data.status, data.evaluation_complete);
                         
+                        // 显示/隐藏多轮评测信息
+                        if (data.status === 'running') {
+                            roundInfo.style.display = 'block';
+                            // 尝试从进度信息中提取轮次信息
+                            if (data.progress > 0) {
+                                // 估算当前轮次（基于进度）
+                                const estimatedRound = Math.ceil(data.progress / 20) + 1;
+                                currentRound.textContent = `第${estimatedRound}轮`;
+                                validRatio.textContent = `${(data.completion_rate * 100).toFixed(1)}%`;
+                            }
+                        } else {
+                            roundInfo.style.display = 'none';
+                        }
+                        
                         // 更新tqdm风格进度条
                         const progressValue = data.progress || 0;
                         if (progressValue > lastProgress) {
@@ -468,19 +548,56 @@
                                 const accuracyContainer = document.getElementById('accuracyContainer');
                                 const retryMessage = document.getElementById('retryMessage');
                                 const accuracy = document.getElementById('accuracy');
+                                const totalQuestions = document.getElementById('totalQuestions');
+                                const validQuestions = document.getElementById('validQuestions');
+                                const validRate = document.getElementById('validRate');
+                                const rawScoreContainer = document.getElementById('rawScoreContainer');
+                                const rawScore = document.getElementById('rawScore');
+                                const finalScoreContainer = document.getElementById('finalScoreContainer');
+                                const finalScore = document.getElementById('finalScore');
+                                
+                                // 更新基本信息
+                                totalQuestions.textContent = data.total_questions || 0;
+                                validQuestions.textContent = data.valid_questions || 0;
+                                validRate.textContent = data.valid_rate ? `${(data.valid_rate * 100).toFixed(1)}%` : '-';
                                 
                                 if (data.is_valid_evaluation) {
                                     evaluationStatus.textContent = '有效';
                                     evaluationStatus.className = 'badge rounded-pill bg-success';
                                     accuracyContainer.style.display = 'block';
+                                    rawScoreContainer.style.display = 'block';
+                                    finalScoreContainer.style.display = 'block';
                                     retryMessage.style.display = 'none';
-                                    accuracy.textContent = `${(data.score).toFixed(2)}`;
+                                    
+                                    // 显示分数信息
+                                    accuracy.textContent = `${(data.score || 0).toFixed(2)}`;
+                                    rawScore.textContent = `${(data.raw_score || 0).toFixed(2)}`;
+                                    finalScore.textContent = `${(data.score || 0).toFixed(2)}`;
                                 } else {
                                     evaluationStatus.textContent = '无效';
                                     evaluationStatus.className = 'badge rounded-pill bg-danger';
                                     accuracyContainer.style.display = 'none';
+                                    rawScoreContainer.style.display = 'none';
+                                    finalScoreContainer.style.display = 'none';
                                     retryMessage.style.display = 'block';
                                 }
+                            }
+                        }
+                        
+                        // 处理错误信息（当状态为failed时）
+                        if (data.status === 'failed') {
+                            // 隐藏其他区域
+                            completionContainer.style.display = 'none';
+                            const evaluationResults = document.getElementById('evaluationResults');
+                            if (evaluationResults) {
+                                evaluationResults.style.display = 'none';
+                            }
+                            
+                            // 显示错误信息
+                            if (errorContainer && data.error_message) {
+                                errorContainer.style.display = 'block';
+                                errorMessage.textContent = data.error_message;
+                                errorDetails.textContent = data.error_details || '无详细错误信息';
                             }
                         }
                         

@@ -5,164 +5,392 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>分榜 - LLM评测平台</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <style>
-        .leaderboard-section {
-            margin-bottom: 3rem;
+        .leaderboard-card {
+            margin-bottom: 2rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            border-radius: 0.5rem;
+            overflow: hidden;
         }
-        .leaderboard-title {
-            margin-bottom: 1.5rem;
-            padding-bottom: 0.5rem;
+        .leaderboard-header {
+            background-color: #f8f9fa;
+            padding: 1rem;
             border-bottom: 1px solid #dee2e6;
         }
-        .score-cell {
+        .leaderboard-title {
+            margin: 0;
+            font-size: 1.5rem;
+            color: #495057;
+        }
+        .leaderboard-description {
+            margin: 0.5rem 0 0;
+            color: #6c757d;
+            font-size: 0.9rem;
+        }
+        .score-gold {
+            background-color: #ffd700;
+            color: #212529;
+        }
+        .score-silver {
+            background-color: #c0c0c0;
+            color: #212529;
+        }
+        .score-bronze {
+            background-color: #cd7f32;
+            color: #fff;
+        }
+        .score-badge {
+            font-size: 1rem;
+            padding: 0.25rem 0.5rem;
+            border-radius: 0.25rem;
+        }
+        .update-info {
+            text-align: right;
+            color: #6c757d;
+            font-size: 0.85rem;
+            margin: 1rem 0;
+        }
+        .nav-link.active {
             font-weight: bold;
         }
-        .date-cell {
+        .first-place {
+            font-weight: bold;
+        }
+        .model-date {
             font-size: 0.85rem;
             color: #6c757d;
         }
-        .dataset-filter {
-            max-width: 350px;
-            margin-bottom: 2rem;
-        }
-        .dataset-description {
-            color: #6c757d;
+        .dataset-selector {
             margin-bottom: 1.5rem;
         }
-        .last-update {
-            font-size: 0.85rem;
+        .sortable-header {
+            cursor: pointer;
+            position: relative;
+            padding-right: 20px;
+        }
+        .sortable-header:hover {
+            background-color: rgba(0,0,0,0.05);
+        }
+        .sort-icon {
+            position: absolute;
+            right: 5px;
+            top: 50%;
+            transform: translateY(-50%);
+        }
+        .search-box {
+            position: relative;
+        }
+        .search-box .form-control {
+            padding-left: 35px;
+        }
+        .search-icon {
+            position: absolute;
+            left: 12px;
+            top: 50%;
+            transform: translateY(-50%);
             color: #6c757d;
-            margin-top: 1rem;
-            text-align: right;
+        }
+        .hidden-row {
+            display: none;
+        }
+        .no-results {
+            display: none;
+            padding: 20px;
+            text-align: center;
+            color: #6c757d;
+        }
+        .selector-group {
+            margin-bottom: 1rem;
+        }
+        .user-info {
+            background-color: #f8f9fa;
+            padding: 0.5rem 1rem;
+            border-radius: 0.25rem;
+            margin-bottom: 1rem;
         }
     </style>
 </head>
 <body>
-    <div class="container mt-4 mb-5">
+    <div class="container mt-4">
         <!-- 导航栏 -->
         <nav class="navbar navbar-expand-lg navbar-light bg-light mb-4">
             <div class="container-fluid">
-                <a class="navbar-brand" href="/">LLM评测平台</a>
+                <a class="navbar-brand" href="/">MEvalKit</a>
                 <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
                     <span class="navbar-toggler-icon"></span>
                 </button>
                 <div class="collapse navbar-collapse" id="navbarNav">
-                    <ul class="navbar-nav">
+                    <ul class="navbar-nav me-auto">
                         <li class="nav-item">
                             <a class="nav-link" href="/">总榜</a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link active" href="/specific_leaderboard">分榜</a>
+                            <a class="nav-link active" href="/specific-leaderboard">分榜</a>
                         </li>
-                        <li class="nav-item">
-                            <a class="nav-link" href="/results">评测任务</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link" href="/create_task">创建任务</a>
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown">
+                                评测管理
+                            </a>
+                            <ul class="dropdown-menu">
+                                <li><a class="dropdown-item" href="/new-evaluation">开始新评测</a></li>
+                                <li><a class="dropdown-item" href="/view-evaluations">查看评测</a></li>
+                            </ul>
                         </li>
                     </ul>
+                    <div class="user-info">用户：{{ user_id }}</div>
                 </div>
             </div>
         </nav>
         
-        <h1 class="mb-4">模型分榜</h1>
+        <h1 class="mb-4">模型评测分榜</h1>
         
-        <!-- 数据集选择下拉框 -->
-        <div class="dataset-filter">
-            <label for="dataset-select" class="form-label">选择评测数据集</label>
-            <select class="form-select" id="dataset-select">
-                <!-- 按类别分组的数据集 -->
-                <optgroup label="文本评测集">
-                    {% for dataset in dataset_categories.text %}
-                    <option value="{{ dataset }}" {% if loop.first %}selected{% endif %}>{{ dataset }}</option>
-                    {% endfor %}
-                </optgroup>
-                <optgroup label="多模态评测集">
-                    {% for dataset in dataset_categories.multimodal %}
-                    <option value="{{ dataset }}">{{ dataset }}</option>
-                    {% endfor %}
-                </optgroup>
+        <!-- 评测集类别和评测集选择器 -->
+        <div class="row dataset-selector align-items-center">
+            <div class="col-md-8">
+                <div class="row">
+                    <!-- 评测集类别选择器 -->
+                    <div class="col-md-6 selector-group">
+                        <div class="input-group">
+                            <label class="input-group-text" for="categorySelect">评测集类别:</label>
+                            <select class="form-select" id="categorySelect">
+                                <option value="text" selected>纯文本评测</option>
+                                <option value="multimodal">多模态评测</option>
+                            </select>
+                        </div>
+                    </div>
+                    <!-- 评测集选择器 -->
+                    <div class="col-md-6 selector-group">
+                        <div class="input-group">
+                            <label class="input-group-text" for="datasetSelect">评测集:</label>
+                            <select class="form-select" id="datasetSelect">
+                                <!-- 默认显示文本评测集 -->
+                                <option value="MMLU" selected data-category="text">MMLU - 多任务语言理解基准</option>
+                                <option value="CMB" data-category="text">CMB - 中文医学知识基准</option>
+                                <option value="GPQA" data-category="text">GPQA - 通用物理问答基准</option>
+                                <option value="MMStar" data-category="multimodal" style="display:none">MMStar - 多模态评估基准</option>
             </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 模型搜索框 -->
+            <div class="col-md-4">
+                <div class="search-box">
+                    <span class="search-icon"><i class="bi bi-search"></i></span>
+                    <input type="text" class="form-control" id="modelSearch" placeholder="搜索模型...">
+                </div>
+            </div>
+            
+            <!-- 更新时间信息 -->
+            <div class="col-12 mt-2">
+                <p class="update-info">最后更新时间: {{ last_update }}</p>
+            </div>
         </div>
         
-        <!-- 数据集说明 -->
-        <div class="dataset-description" id="dataset-description"></div>
-        
-        <!-- 排行榜容器 -->
+        <!-- 数据集排行榜 -->
+        <div class="row">
+            <div class="col-md-10 mx-auto">
         {% for dataset in datasets %}
-        <div class="leaderboard-section" id="leaderboard-{{ dataset }}" style="display: none;">
-            <h2 class="leaderboard-title">{{ dataset }} 排行榜</h2>
-            
-            {% if leaderboard[dataset] %}
+                    <div id="leaderboard-{{ dataset }}" class="leaderboard-card" style="display: {% if dataset == 'MMLU' %}block{% else %}none{% endif %};">
+                        <div class="leaderboard-header">
+                            <h2 class="leaderboard-title">{{ dataset }}</h2>
+                            <p class="leaderboard-description">{{ dataset_descriptions[dataset] }}</p>
+                        </div>
             <div class="table-responsive">
-                <table class="table table-striped table-hover">
+                            <table class="table table-hover table-striped mb-0">
                     <thead>
                         <tr>
-                            <th scope="col">#</th>
-                            <th scope="col">模型</th>
-                            <th scope="col">准确率</th>
-                            <th scope="col">评测日期</th>
+                                        <th width="15%" class="sortable-header" data-sort="rank">
+                                            排名 <i class="bi bi-arrow-down-up sort-icon"></i>
+                                        </th>
+                                        <th width="40%" class="sortable-header" data-sort="model">
+                                            模型 <i class="bi bi-arrow-down-up sort-icon"></i>
+                                        </th>
+                                        <th width="25%" class="sortable-header" data-sort="score">
+                                            分数 <i class="bi bi-arrow-down-up sort-icon"></i>
+                                        </th>
+                                        <th width="20%" class="sortable-header" data-sort="date">
+                                            更新时间 <i class="bi bi-arrow-down-up sort-icon"></i>
+                                        </th>
                         </tr>
                     </thead>
                     <tbody>
-                        {% for item in leaderboard[dataset] %}
-                        <tr>
-                            <td>{{ loop.index }}</td>
-                            <td>{{ item.model }}</td>
-                            <td class="score-cell">{{ "%.2f"|format(item.score * 100) }}%</td>
-                            <td class="date-cell">{{ item.date }}</td>
+                                    {% for rank, model in leaderboard_data[dataset].items() %}
+                                    <tr class="model-row" data-model="{{ model.model_name.lower() }}">
+                                        <td>
+                                            {% if rank == 1 %}
+                                                <span class="score-badge score-gold">{{ rank }}</span>
+                                            {% elif rank == 2 %}
+                                                <span class="score-badge score-silver">{{ rank }}</span>
+                                            {% elif rank == 3 %}
+                                                <span class="score-badge score-bronze">{{ rank }}</span>
+                                            {% else %}
+                                                <span class="score-badge bg-secondary">{{ rank }}</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            <div class="model-name {% if rank == 1 %}first-place{% endif %}">{{ model.model_name }}</div>
+                                        </td>
+                                        <td>
+                                            <span class="score-badge bg-primary">{{ "%.2f"|format(model.score) }}</span>
+                                        </td>
+                                        <td>
+                                            <div class="model-date">{{ model.date }}</div>
+                                        </td>
                         </tr>
                         {% endfor %}
                     </tbody>
                 </table>
             </div>
-            {% else %}
-            <div class="alert alert-info">
-                <p class="mb-0">暂无评测数据。</p>
-            </div>
-            {% endif %}
         </div>
         {% endfor %}
         
-        <div class="last-update">
-            最后更新时间: {{ last_update }}
+                <!-- 无结果提示 -->
+                <div id="no-results" class="no-results">
+                    <h4>未找到匹配的模型</h4>
+                    <p>请尝试调整搜索条件</p>
+                </div>
+            </div>
         </div>
     </div>
     
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.8.1/font/bootstrap-icons.css"></script>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            // 数据集描述
-            const datasetDescriptions = {{ dataset_descriptions|tojson }};
+            const categorySelect = document.getElementById('categorySelect');
+            const datasetSelect = document.getElementById('datasetSelect');
+            const modelSearch = document.getElementById('modelSearch');
+            const leaderboards = document.querySelectorAll('.leaderboard-card');
+            const noResults = document.getElementById('no-results');
             
-            // 获取元素
-            const datasetSelect = document.getElementById('dataset-select');
-            const datasetDescription = document.getElementById('dataset-description');
-            
-            // 初始化显示第一个评测集
-            updateLeaderboard(datasetSelect.value);
-            
-            // 监听下拉框变化
-            datasetSelect.addEventListener('change', function() {
-                updateLeaderboard(this.value);
-            });
-            
-            // 更新显示的排行榜
-            function updateLeaderboard(dataset) {
-                // 隐藏所有排行榜
-                document.querySelectorAll('.leaderboard-section').forEach(section => {
-                    section.style.display = 'none';
+            // 类别切换
+            categorySelect.addEventListener('change', function() {
+                const category = this.value;
+                const options = datasetSelect.querySelectorAll('option');
+                
+                options.forEach(option => {
+                    if (option.dataset.category === category) {
+                        option.style.display = 'block';
+                    } else {
+                        option.style.display = 'none';
+                    }
                 });
                 
-                // 显示选中的排行榜
-                const selectedLeaderboard = document.getElementById(`leaderboard-${dataset}`);
-                if (selectedLeaderboard) {
-                    selectedLeaderboard.style.display = 'block';
+                // 选择第一个可见的选项
+                const firstVisible = Array.from(options).find(option => option.style.display !== 'none');
+                if (firstVisible) {
+                    datasetSelect.value = firstVisible.value;
+                    showLeaderboard(firstVisible.value);
                 }
+            });
+            
+            // 数据集切换
+            datasetSelect.addEventListener('change', function() {
+                showLeaderboard(this.value);
+            });
+            
+            // 模型搜索
+            modelSearch.addEventListener('input', function() {
+                const searchTerm = this.value.toLowerCase();
+                const currentLeaderboard = document.querySelector('.leaderboard-card[style*="block"]');
+                const rows = currentLeaderboard.querySelectorAll('.model-row');
+                let hasVisibleRows = false;
                 
-                // 更新描述
-                datasetDescription.textContent = datasetDescriptions[dataset] || '';
+                rows.forEach(row => {
+                    const modelName = row.querySelector('.model-name').textContent.toLowerCase();
+                    if (modelName.includes(searchTerm)) {
+                        row.classList.remove('hidden-row');
+                        hasVisibleRows = true;
+                    } else {
+                        row.classList.add('hidden-row');
+                    }
+                });
+                
+                // 显示/隐藏无结果提示
+                if (hasVisibleRows) {
+                    noResults.style.display = 'none';
+                } else {
+                    noResults.style.display = 'block';
+                }
+            });
+            
+            // 排序功能
+            document.querySelectorAll('.sortable-header').forEach(header => {
+                header.addEventListener('click', function() {
+                    const sortBy = this.dataset.sort;
+                    const table = this.closest('table');
+                    const tbody = table.querySelector('tbody');
+                    const rows = Array.from(tbody.querySelectorAll('tr'));
+                    
+                    // 切换排序方向
+                    const currentOrder = this.dataset.order || 'desc';
+                    const newOrder = currentOrder === 'desc' ? 'asc' : 'desc';
+                    
+                    // 更新所有表头的排序状态
+                    table.querySelectorAll('.sortable-header').forEach(h => {
+                        h.dataset.order = '';
+                        h.querySelector('.sort-icon').className = 'sort-icon bi bi-arrow-down-up';
+                });
+                
+                    // 设置当前表头的排序状态
+                    this.dataset.order = newOrder;
+                    const icon = this.querySelector('.sort-icon');
+                    icon.className = `sort-icon bi bi-arrow-${newOrder === 'desc' ? 'down' : 'up'}`;
+                    
+                    // 排序行
+                    rows.sort((a, b) => {
+                        let aValue, bValue;
+                        
+                        switch(sortBy) {
+                            case 'rank':
+                                aValue = parseInt(a.querySelector('td:first-child .score-badge').textContent);
+                                bValue = parseInt(b.querySelector('td:first-child .score-badge').textContent);
+                                break;
+                            case 'model':
+                                aValue = a.querySelector('.model-name').textContent.toLowerCase();
+                                bValue = b.querySelector('.model-name').textContent.toLowerCase();
+                                break;
+                            case 'score':
+                                aValue = parseFloat(a.querySelector('.score-badge.bg-primary').textContent);
+                                bValue = parseFloat(b.querySelector('.score-badge.bg-primary').textContent);
+                                break;
+                            case 'date':
+                                aValue = new Date(a.querySelector('.model-date').textContent);
+                                bValue = new Date(b.querySelector('.model-date').textContent);
+                                break;
+                            default:
+                                return 0;
+                        }
+                        
+                        if (newOrder === 'desc') {
+                            return bValue > aValue ? 1 : -1;
+                        } else {
+                            return aValue > bValue ? 1 : -1;
+                        }
+                    });
+                    
+                    // 重新插入排序后的行
+                    rows.forEach(row => tbody.appendChild(row));
+                });
+            });
+            
+            function showLeaderboard(dataset) {
+                leaderboards.forEach(leaderboard => {
+                    if (leaderboard.id === `leaderboard-${dataset}`) {
+                        leaderboard.style.display = 'block';
+                    } else {
+                        leaderboard.style.display = 'none';
+                    }
+                });
+                
+                // 清空搜索
+                modelSearch.value = '';
+                document.querySelectorAll('.model-row').forEach(row => {
+                    row.classList.remove('hidden-row');
+                });
+                noResults.style.display = 'none';
             }
         });
     </script>

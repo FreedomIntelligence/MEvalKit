@@ -2,6 +2,7 @@ import sys
 import os
 import json
 import re
+import time
 from pathlib import Path
 from openai import BadRequestError
 import concurrent.futures
@@ -14,7 +15,8 @@ from src.dataset.LLMJudge.LLMJudgeBase import *
 from src.api.text_api import *
 from src.api.multiturn_text_api import *
 from src.utils.default_prompts import *
-from typing import List, Tuple, Dict, Any, Optional, Union
+from src.utils.model_and_dataset import *
+from typing import List, Literal, Tuple, Dict, Any, Optional, Union
 from dotenv import load_dotenv
 
 def write_json_file(data, file_path):
@@ -27,7 +29,7 @@ def write_json_file(data, file_path):
             
         with open(file_path, 'w', encoding='utf-8') as f:
             json.dump(data, f, ensure_ascii=False, indent=4)
-        print(f"数据已成功写入: {file_path}")
+        #print(f"数据已成功写入: {file_path}")
         return True
     except Exception as e:
         print(f"写入JSON文件时出错: {str(e)}")
@@ -44,101 +46,253 @@ def read_json_file(file_path):
         print(f"读取JSON文件时出错: {str(e)}")
         return None
 
-def extract_score(evaluate_response: str) -> Optional[Union[int, float]]:
-    """从评估响应中提取分数"""
-    if not evaluate_response or evaluate_response == "Error" or evaluate_response == "Neglected":
-        return None
+def extract_scores(evaluate_response: str) -> Optional[Union[int, float]]:
+    """
+    从评估响应中提取分数
     
-    # 定义多种可能的评分模式
-    score_patterns = [
-        r'评分[:：]\s*(\d+(?:\.\d+)?)',  # 中文格式
-        r'[Ss]core[:：]\s*(\d+(?:\.\d+)?)',  # 英文格式
-        r'(\d+(?:\.\d+)?)\s*/\s*\d+',  # X/10 格式
-        r'评分为\s*(\d+(?:\.\d+)?)',  # "评分为X" 格式
-        r'[Rr]ating[:：]?\s*(\d+(?:\.\d+)?)',  # Rating: X 格式
-        r'[Gg]rade[:：]?\s*(\d+(?:\.\d+)?)',  # Grade: X 格式
-        r'[Pp]oints[:：]?\s*(\d+(?:\.\d+)?)',  # Points: X 格式
-        r'(\d+(?:\.\d+)?)\s*[Pp]oints',  # X Points 格式
-        r'得分[:：]?\s*(\d+(?:\.\d+)?)',  # 得分: X 格式
-        r'分数[:：]?\s*(\d+(?:\.\d+)?)'   # 分数: X 格式
-    ]  
+    评分规则要求第一行必须是1-10的整数分数
+    处理各种可能的格式错误：
+    1. 第一行是```等markdown标记
+    2. 第一行包含额外文本
+    3. 分数不在第一行
+    4. 分数格式不规范
+    """
+    if not evaluate_response or not evaluate_response.strip():
+        print("评估响应为空")
+        return 0
     
-    # 尝试所有模式匹配
-    for pattern in score_patterns:
-        match = re.search(pattern, evaluate_response)
-        if match:
-            try:
-                score = float(match.group(1))
-                if score.is_integer():
-                    return int(score)
-                return score
-            except ValueError:
+    try:
+        # 按行分割并清理
+        lines = [line.strip() for line in evaluate_response.strip().split('\n') if line.strip()]
+        
+        if not lines:
+            print("评估响应没有有效行")
+            return 0
+        
+        # 查找包含分数的行
+        score_line = None
+        for line in lines:
+            # 跳过markdown标记行
+            if line.startswith('```') or line.startswith('`') or line.startswith('#'):
                 continue
-    
-    return None
+            
+            # 跳过空行或只包含标点的行
+            if not line or line in ['', ' ', '\t']:
+                continue
+            
+            # 尝试从行中提取数字
+            # 匹配1-10的整数，可能前后有空格或其他字符
+            import re
+            score_match = re.search(r'\b([1-9]|10)\b', line)
+            if score_match:
+                score_line = line
+                break
+        
+        if not score_line:
+            print(f"未找到有效分数行，响应内容：{evaluate_response[:200]}...")
+            return 0
+        
+        # 从找到的行中提取分数
+        # 支持多种格式：纯数字、数字+逗号、数字+其他文本
+        import re
+        
+        # 提取所有1-10的数字
+        scores = re.findall(r'\b([1-9]|10)\b', score_line)
+        
+        if not scores:
+            print(f"从行中无法提取分数：{score_line}")
+            return 0
+        
+        # 转换为整数
+        score_values = [int(score) for score in scores]
+        
+        # 返回第一个分数（通常是最准确的）
+        result_score = score_values[0]
+        
+        # 验证分数是否在合理范围内
+        if result_score < 1 or result_score > 10:
+            print(f"分数超出范围(1-10)：{result_score}")
+            return 0
+        
+        return result_score
+        
+    except Exception as e:
+        print(f"提取分数时出错：{e}")
+        print(f"响应内容：{evaluate_response[:200]}...")
+        return 0
 
-def process_single_question(args):
+def process_single_question_automatic(args):
     """
     处理单个问题
     
     参数:
-        args: (idx, question, reference_answer, generate_model_name, evaluate_model_name, temperature)
+        args: (idx, question, background, reference_answer, model_response, generate_model_name, evaluate_model_name, temperature, generate_prompt, judge_prompt, judge_prompt_with_reference)
         
     返回:
         (idx, result): 问题索引和处理结果
     """
-    idx, question, reference_answer, generate_model_name, evaluate_model_name, temperature = args
+    idx, language, background, case, questions, reference_answer, result, model_name, model_key, api_base, judge_prompt, judge_prompt_with_reference, temperature = args
+    evaluate_model = "gpt-4o"
     
-    # 不再在这里使用tqdm显示进度
-    
-    result = {
-        "question": question,
-        "reference_answer": reference_answer,
-        "generate_response": "Neglected",
-        "evaluate_response": "Neglected",
-        "score": None
-    }
-    
-    try:
-        # 使用生成模型回答问题
-        generate_chat = MultiturnTextAPI(generate_model_name, DEFAULT_GENERATE_SYSTEM_PROMPT, question, temperature, f"GenerateAgent_{idx}")
-        generate_response = generate_chat.generate_response()
-        result["generate_response"] = generate_response
-        
-        try:
-            # 使用评估模型评估回答
-            if reference_answer is not None:
-                evaluate_prompt = f"Question: {question}\n\nGenerate Response: {generate_response}\n\nReference Answer: {reference_answer}"
-                evaluate_chat = TextAPI(evaluate_model_name, DEFAULT_JUDGE_SYSTEM_PROMPT_REASONING, evaluate_prompt, 0.7)
-            else:
-                evaluate_prompt = f"Question: {question}\n\nGenerate Response: {generate_response}"
-                evaluate_chat = TextAPI(evaluate_model_name, DEFAULT_JUDGE_SYSTEM_PROMPT, evaluate_prompt, 0.7)
-            
-            evaluate_response = evaluate_chat.generate_response()
-            result["evaluate_response"] = evaluate_response
-            
-            # 提取评分
-            score = extract_score(evaluate_response)
-            result["score"] = score
-            
-        except Exception as e:
-            # 评估模型出错，但生成模型正常
-            print(f"评估问题 {idx} 时出错: {str(e)}")
-            result["evaluate_response"] = "Neglected"
-            result["score"] = None
-    
-    except Exception as e:
-        # 生成模型出错
-        print(f"生成问题 {idx} 的回答时出错: {str(e)}")
-        result["generate_response"] = "Neglected"
-        result["evaluate_response"] = "Neglected"
-        result["score"] = None
-    
-    return idx, result
+    background_prompt_zh = f"任务背景：{background}" if background is not None and language == "zh" else f"任务背景：无"
+    background_prompt_en = f"Background of the task: {background}" if background is not None and language == "en" else "Background of the task: None"
 
-def evaluate_llmjudge(dataset_name: str, generate_model_name: str, evaluate_model_name: str, 
-                     max_workers: int = 4, evaluate_mode: str = "start_from_beginning",
-                     question_limitation: int = 100):
+    if isinstance(case, str):
+        case = [case]
+    if isinstance(questions, str):
+        questions = [questions]
+
+    if language == "zh":
+        system_prompt = DEFAULT_GENERATE_SYSTEM_PROMPT_ZH + background_prompt_zh
+    else:
+        system_prompt = DEFAULT_GENERATE_SYSTEM_PROMPT_EN + background_prompt_en
+
+    if language == "en":
+        system_judge_prompt = DEFAULT_JUDGE_SYSTEM_PROMPT_WITH_GIVEN_EN + background_prompt_en if judge_prompt is None \
+            else DEFAULT_JUDGE_SYSTEM_PROMPT_WITH_GIVEN_EN + judge_prompt + background_prompt_en
+        system_judge_prompt_with_reference = DEFAULT_JUDGE_SYSTEM_PROMPT_WITH_GIVEN_EN + background_prompt_en if judge_prompt_with_reference is None \
+            else DEFAULT_JUDGE_SYSTEM_PROMPT_WITH_GIVEN_EN + judge_prompt_with_reference + background_prompt_en
+    else:
+        system_judge_prompt = DEFAULT_JUDGE_SYSTEM_PROMPT_WITH_GIVEN_ZH + background_prompt_zh if judge_prompt is None \
+            else DEFAULT_JUDGE_SYSTEM_PROMPT_WITH_GIVEN_ZH + judge_prompt + background_prompt_zh
+        system_judge_prompt_with_reference = DEFAULT_JUDGE_SYSTEM_PROMPT_WITH_GIVEN_ZH + background_prompt_zh if judge_prompt_with_reference is None \
+            else DEFAULT_JUDGE_SYSTEM_PROMPT_WITH_GIVEN_ZH + judge_prompt_with_reference + background_prompt_zh
+
+
+    if model_name == "stressTest":
+        result["generate_response"] = "A"
+        result["evaluate_response"] = "A"
+        result["score"] = 1
+        time.sleep(1)
+        return idx, result
+    else:
+        evaluate_responses = []
+        generate_responses = []
+        scores = []
+
+        for i, question in enumerate(questions):
+            # 构建问题提示语
+            if case is None:
+                if language == "en":
+                    question_prompt = f"Question: {question}"
+                else:
+                    question_prompt = f"问题：{question}"
+            else:
+                case_text = case[0] if len(case) == 1 else case[i]
+                if language == "en":
+                    question_prompt = f"Case: {case_text}\n\nQuestion: {question}"
+                else:
+                    question_prompt = f"案例：{case_text}\n\n问题：{question}"
+
+            # 生成回答
+            generate_chat = MultiturnTextAPI(model_name, system_prompt, question_prompt, temperature, f"GenerateAgent_{idx}", model_key, api_base)
+            model_response = generate_chat.generate_response()
+            generate_responses.append(model_response)
+
+            # 构建评估提示语
+            if reference_answer is not None:
+                if language == "en":
+                    evaluate_prompt = f"{question_prompt}\n\nGenerate Response: {model_response}\n\nReference Answer: {reference_answer}"
+                    evaluate_chat = MultiturnTextAPI(evaluate_model, system_judge_prompt_with_reference, evaluate_prompt, 0.7, f"JudgeAgent_{idx}", model_key, api_base)
+                else:
+                    evaluate_prompt = f"{question_prompt}\n\n模型回答：{model_response}\n\n参考答案：{reference_answer}"
+                    evaluate_chat = MultiturnTextAPI(evaluate_model, system_judge_prompt_with_reference, evaluate_prompt, 0.7, f"JudgeAgent_{idx}", model_key, api_base)
+            else:
+                if language == "en":
+                    evaluate_prompt = f"{question_prompt}\n\nGenerate Response: {model_response}"
+                    evaluate_chat = MultiturnTextAPI(evaluate_model, system_judge_prompt, evaluate_prompt, 0.7, f"JudgeAgent_{idx}", model_key, api_base)
+                else:
+                    evaluate_prompt = f"{question_prompt}\n\n模型回答：{model_response}"
+                    evaluate_chat = MultiturnTextAPI(evaluate_model, system_judge_prompt, evaluate_prompt, 0.7, f"JudgeAgent_{idx}", model_key, api_base)
+
+            # 获取评估结果
+            evaluate_response = evaluate_chat.generate_response()
+            score = extract_scores(evaluate_response)
+            scores.append(score)
+            evaluate_responses.append(evaluate_response)
+
+        # 保存结果
+        result["generate_response"] = generate_responses
+        result["evaluate_response"] = evaluate_responses
+        result["score"] = sum(scores) / len(scores)
+        return idx, result
+
+
+def evaluate_llmjudge_automatic(
+        user_id: str = "test",
+        dataset_name: str = "MT-Bench",
+        model_name: str = "gpt-3.5-turbo",
+        model_key: str = "",
+        api_base: str = "",
+        business_id: str = "",
+        question_limitation: int = 100,
+        max_workers: int = 1
+):
+    """
+    并行评估LLM Judge
+    
+    参数:
+    """
+    dataset = LLMJudgeBase(dataset_name)
+    language = dataset.language
+    background = dataset.background
+    case_list = dataset.case
+    question_list = dataset.questions
+    reference_answer_list = dataset.answers
+    max_score = dataset.max_score
+    judge_prompt = dataset.judge_prompt
+    judge_prompt_with_reference = dataset.judge_prompt_with_reference
+
+    if question_limitation > len(question_list):
+        question_limitation = len(question_list)
+
+    # 修复：如果case_list为空，初始化为与问题数量相同的空值列表
+    if not case_list:
+        case_list = [None] * len(question_list)
+
+    result_file = f"results/{user_id}/{business_id}_result.json"
+    accuracy_file = f"results/{user_id}/{business_id}_score.json"
+    
+    existing_results = read_json_file(result_file)
+    if not existing_results:
+        existing_results = [{"id": i, "reference_answer": "None", "generate_response": "Neglected", "judge_response": "Neglected", "score": -1} for i in range(question_limitation)]
+        write_json_file(existing_results, result_file)
+
+    args_list = []
+    for i in range(question_limitation):
+        if existing_results[i]['score'] >= 0 and existing_results[i]['score'] <= max_score:
+            continue
+        result = existing_results[i]
+        cases = case_list[i] if i < len(case_list) else None
+        questions = question_list[i] if i < len(question_list) else None
+        reference_answer = reference_answer_list[i] if i < len(reference_answer_list) else None
+        temperature = 0 if reference_answer is not None else 0.7
+        args_list.append((i, language, background, cases, questions, reference_answer, result, model_name, model_key, api_base, judge_prompt, judge_prompt_with_reference, temperature))
+    
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = {executor.submit(process_single_question_automatic, args): args[0] for args in args_list}
+        for future in tqdm(concurrent.futures.as_completed(futures), total=len(futures), desc=f"评测中"):
+            idx, result = future.result()
+            existing_results[idx] = result
+            write_json_file(existing_results, result_file)
+    
+    final_results = read_json_file(result_file)
+    generate_score_summary(final_results, accuracy_file, max_score=max_score)
+    return final_results
+        
+
+    
+def evaluate_llmjudge_manual(
+        user_id: str = "",
+        dataset_name: str = "MMStar",
+        model_name: str = "gpt-4o",
+        business_id: str = "",
+        question_limitation: int = 100,
+        response_url: str = "",
+        model_key: str = "",
+        api_base: str = "",
+        max_workers: int = 64,
+        ):
     """
     评估LLM Judge
     
@@ -147,149 +301,140 @@ def evaluate_llmjudge(dataset_name: str, generate_model_name: str, evaluate_mode
         generate_model_name: 生成回答的模型名称
         evaluate_model_name: 评估回答的模型名称
         max_workers: 并行处理的最大工作线程数
-        evaluate_mode: 评估模式，"start_from_beginning"从头开始，"resume_from_checkpoint"从断点继续
+        evaluate_mode: 评估模式，"start_from_beginning"从头开始，"give_answers"使用已有答案
         
     返回:
         评估结果列表
     """
     # 加载数据集
     dataset = LLMJudgeBase(dataset_name)
-    
-    # 创建结果目录
-    result_dir = Path("results")
-    result_dir.mkdir(parents=True, exist_ok=True)
-    
-    # 设置结果文件路径
-    result_file = result_dir / f"{dataset_name}_{generate_model_name}_result.json"
-    score_file = result_dir / f"{dataset_name}_{generate_model_name}_score.json"
-    
-    # 初始化或加载结果
-    if evaluate_mode == "start_from_beginning" or not result_file.exists():
-        # 从头开始评估：初始化所有问题的结果
-        all_results = []
-        for question_number in range(question_limitation):
-            questions = dataset.questions[question_number]
-            answers = dataset.answers[question_number]
-            
-            # 确保问题是列表格式
-            if isinstance(questions, str):
-                questions = [questions]
-            
-            # 初始化问题结果
-            question_results = []
-            for i, question in enumerate(questions):
-                reference_answer = answers[i] if answers is not None else None
-                question_results.append({
-                    "question": question,
-                    "reference_answer": reference_answer,
-                    "generate_response": "Neglected",
-                    "evaluate_response": "Neglected",
-                    "score": None
-                })
-            
-            all_results.append({
-                "dataset_name": dataset_name,
-                "generate_model_name": generate_model_name,
-                "evaluate_model_name": evaluate_model_name,
-                "question_number": question_number,
-                "results": question_results
-            })
-        
-        # 写入初始结果文件
-        write_json_file(all_results, result_file)
-    else:
-        # 从断点处继续评估：加载现有结果
-        all_results = read_json_file(result_file)
-        if not all_results:
-            # 如果文件存在但无法读取，则从头开始
-            return evaluate_llmjudge(dataset_name, generate_model_name, evaluate_model_name, 
-                                    max_workers, "start_from_beginning")
-    
-    # 创建问题集进度条
-    total_question_sets = min(len(dataset.questions), question_limitation)
-    question_set_pbar = tqdm(
-        total=total_question_sets, 
-        desc=f"评估数据集 {dataset_name}", 
-        position=0,
-        leave=True
-    )
-    
-    # 记录已完成的问题集数量
-    completed_sets = 0
-    
-    # 处理每个问题集
-    for question_number in range(question_limitation):
-        if question_number >= len(dataset.questions):
-            break
-            
-        questions = dataset.questions[question_number]
-        answers = dataset.answers[question_number]
-        
-        # 确保问题是列表格式
-        if isinstance(questions, str):
-            questions = [questions]
-        
-        # 根据是否有参考答案设置温度参数
-        temperature = 0 if answers is not None else 0.7
-        
-        # 准备参数列表
-        args_list = []
-        for i, question in enumerate(questions):
-            # 获取当前问题的结果
-            current_result = all_results[question_number]["results"][i]
-            
-            # 检查是否需要处理此问题
-            if evaluate_mode == "resume_from_checkpoint":
-                # 如果生成和评估都已完成，跳过
-                if (current_result["generate_response"] != "Neglected" and 
-                    current_result["evaluate_response"] != "Neglected"):
-                    continue
-                # 如果只有生成完成但评估未完成，只进行评估
-                if (current_result["generate_response"] != "Neglected" and 
-                    current_result["evaluate_response"] == "Neglected"):
-                    # 这种情况在process_single_question中处理
-                    pass
-            
-            reference_answer = answers[i] if answers is not None else None
-            args_list.append((i, question, reference_answer, generate_model_name, evaluate_model_name, temperature))
-        
-        # 如果没有需要处理的问题，跳过此问题集并更新进度条
-        if not args_list:
-            question_set_pbar.update(1)
-            completed_sets += 1
-            print(f"问题集 {question_number} 已全部完成，当前进度: {completed_sets}/{total_question_sets}")
-            continue
-        
-        # 并行处理问题，不使用内部tqdm
-        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
-            futures = {executor.submit(process_single_question, args): args[0] for args in args_list}
-            
-            # 等待所有任务完成
-            for future in concurrent.futures.as_completed(futures):
-                idx, result = future.result()
-                
-                # 更新结果
-                all_results[question_number]["results"][idx] = result
-                
-                # 每完成一题就更新结果文件
-                write_json_file(all_results, result_file)
-        
-        # 更新问题集进度条
-        question_set_pbar.update(1)
-        completed_sets += 1
-        
-        # 打印当前完成的问题集进度
-        print(f"完成问题集 {question_number}，当前进度: {completed_sets}/{total_question_sets}")
-    
-    # 关闭进度条
-    question_set_pbar.close()
-    
-    # 生成评分摘要
-    generate_score_summary(all_results, score_file)
-    
-    return all_results
+    # 加载必要元素
+    language = dataset.language
+    #print(language)
+    background = dataset.background
+    case_list = dataset.case
+    question_list = dataset.questions
+    reference_answer_list = dataset.answers
 
-def generate_score_summary(all_results, score_file, completion_threshold=0.95):
+    max_score = dataset.max_score
+    judge_prompt = dataset.judge_prompt
+    judge_prompt_with_reference = dataset.judge_prompt_with_reference
+
+    # 修复：如果case_list为空，初始化为与问题数量相同的空值列表
+    if not case_list:
+        case_list = [None] * len(question_list)
+    
+    try:
+        response = requests.get(response_url, timeout=60)
+        response = response.json()
+    except Exception as e:
+        print(f"获取响应时出错: {str(e)}")
+        return None
+
+    result_file = f"results/{user_id}/{business_id}_manual_result.json"
+    score_file = f"results/{user_id}/{business_id}_manual_score.json"
+    existing_results = read_json_file(result_file)
+    if not existing_results:
+        existing_results = [{"id": i, "reference_answer": "None", "generate_response": "Neglected", "judge_response": "Neglected", "score": -1} for i in range(len(question_list))]
+        write_json_file(existing_results, result_file)
+
+    if question_limitation >= len(question_list):
+        question_limitation = len(question_list)
+        
+    args_list = []
+    for i in range(len(question_list)):
+        if existing_results[i]['score'] >= 0 and existing_results[i]['score'] <= max_score:
+            continue
+        result = existing_results[i]
+        cases = case_list[i]
+        questions = question_list[i]
+        reference_answer = reference_answer_list[i]
+        model_responses = response[i]['response']
+        args_list.append((i, language, background, cases, questions, model_responses, reference_answer, result, model_name, judge_prompt, judge_prompt_with_reference, model_key, api_base))
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = {executor.submit(process_single_question_manual, args): args[0] for args in args_list}
+            for future in tqdm(concurrent.futures.as_completed(futures), total=len(futures), desc=f"评测中"):
+                idx, result = future.result()
+                existing_results[idx] = result
+                write_json_file(existing_results, result_file)
+        
+        final_results = read_json_file(result_file)
+        generate_score_summary(final_results, score_file, max_score=max_score)
+    return final_results
+
+def process_single_question_manual(args):
+    """
+    处理单个问题
+    
+    参数:
+        args: (idx, language, background, cases, questions, model_responses, reference_answer, result, model, judge_prompt, judge_prompt_with_reference, temperature)
+    """
+    idx, language, background, cases, questions, model_responses, reference_answer, result, model, judge_prompt, judge_prompt_with_reference, model_key, api_base = args
+    background_prompt_zh = f"任务背景：{background}" if background is not None and language == "zh" else f"任务背景：无"
+    background_prompt_en = f"Background of the task: {background}" if background is not None and language == "en" else "Background of the task: None"
+
+    if language == "en":
+        system_judge_prompt = DEFAULT_JUDGE_SYSTEM_PROMPT_WITH_GIVEN_EN + background_prompt_en if judge_prompt is None \
+            else DEFAULT_JUDGE_SYSTEM_PROMPT_WITH_GIVEN_EN + judge_prompt + background_prompt_en
+        system_judge_prompt_with_reference = DEFAULT_JUDGE_SYSTEM_PROMPT_WITH_GIVEN_EN + background_prompt_en if judge_prompt_with_reference is None \
+            else DEFAULT_JUDGE_SYSTEM_PROMPT_WITH_GIVEN_EN + judge_prompt_with_reference + background_prompt_en
+    else:
+        system_judge_prompt = DEFAULT_JUDGE_SYSTEM_PROMPT_WITH_GIVEN_ZH + background_prompt_zh if judge_prompt is None \
+            else DEFAULT_JUDGE_SYSTEM_PROMPT_WITH_GIVEN_ZH + judge_prompt + background_prompt_zh
+        system_judge_prompt_with_reference = DEFAULT_JUDGE_SYSTEM_PROMPT_WITH_GIVEN_ZH + background_prompt_zh if judge_prompt_with_reference is None \
+            else DEFAULT_JUDGE_SYSTEM_PROMPT_WITH_GIVEN_ZH + judge_prompt_with_reference + background_prompt_zh
+    
+    if isinstance(cases, str):
+        cases = [cases]
+    if isinstance(questions, str):
+        questions = [questions]
+    if isinstance(model_responses, str):
+        model_responses = [model_responses]
+    
+    evaluate_responses = []
+    generate_responses = []
+    scores = []
+
+    for i, question in enumerate(questions):
+        if cases is None:
+            if language == "en":
+                question_prompt = f"Question: {question}"
+            else:
+                question_prompt = f"问题：{question}"
+        else:
+            case_text = cases[0] if len(cases) == 1 else cases[i]
+            if language == "en":
+                question_prompt = f"Case: {case_text}\n\nQuestion: {question}"
+            else:
+                question_prompt = f"案例：{case_text}\n\n问题：{question}"
+
+        model_response = model_responses[i]
+        if reference_answer is not None:
+            if language == "en":
+                evaluate_prompt = f"{question_prompt}\n\nGenerate Response: {model_response}\n\nReference Answer: {reference_answer}"
+            else:
+                evaluate_prompt = f"{question_prompt}\n\n模型回答：{model_response}\n\n参考答案：{reference_answer}"
+            evaluate_chat = MultiturnTextAPI("gpt-4o", system_judge_prompt_with_reference, evaluate_prompt, 0.7, f"JudgeAgent_{idx}", model_key, api_base)
+        else:
+            if language == "en":
+                evaluate_prompt = f"{question_prompt}\n\nGenerate Response: {model_response}"
+            else:
+                evaluate_prompt = f"{question_prompt}\n\n模型回答：{model_response}"
+            evaluate_chat = MultiturnTextAPI("gpt-4o", system_judge_prompt, evaluate_prompt, 0.7, f"JudgeAgent_{idx}", model_key, api_base)
+
+        evaluate_response = evaluate_chat.generate_response()
+        score = extract_scores(evaluate_response)
+        scores.append(score)
+        evaluate_responses.append(evaluate_response)
+
+    result["generate_response"] = generate_responses
+    result["evaluate_response"] = evaluate_responses
+    result["score"] = sum(scores) / len(scores)
+    return idx, result
+
+
+def generate_score_summary(all_results, score_file, completion_threshold=0.95, max_score=10):
     """
     生成评分摘要并写入文件
     
@@ -302,49 +447,37 @@ def generate_score_summary(all_results, score_file, completion_threshold=0.95):
     total_questions = 0
     valid_scores = []
     
-    for question_set in all_results:
-        for result in question_set["results"]:
-            total_questions += 1
-            if result["score"] is not None:
-                valid_scores.append(result["score"])
+    # 检查all_results的结构
+    if isinstance(all_results, list) and len(all_results) > 0:
+        # 如果是LLMJudge格式（直接是结果列表）
+        if "score" in all_results[0]:
+            for result in all_results:
+                total_questions += 1
+                if result["score"] >= 0 and result["score"] <= max_score:
+                    valid_scores.append(result["score"])
+        # 如果是其他格式（包含question_set）
+        elif "results" in all_results[0]:
+            for question_set in all_results:
+                for result in question_set["results"]:
+                    total_questions += 1
+                    if result["score"] >= 0 and result["score"] <= max_score:
+                        valid_scores.append(result["score"])
     
     # 计算完成率
     completion_ratio = len(valid_scores) / total_questions if total_questions > 0 else 0
     
     # 如果完成率达到阈值，生成评分摘要
     if completion_ratio >= completion_threshold:
-        # 计算统计数据
-        if valid_scores:
-            avg_score = sum(valid_scores) / len(valid_scores)
-            max_score = max(valid_scores)
-            min_score = min(valid_scores)
-            
-            # 创建评分分布
-            score_distribution = {}
-            for score in valid_scores:
-                score_str = str(score)
-                if score_str in score_distribution:
-                    score_distribution[score_str] += 1
-                else:
-                    score_distribution[score_str] = 1
-        else:
-            avg_score = None
-            max_score = None
-            min_score = None
-            score_distribution = {}
+        raw_score = sum(valid_scores) / len(valid_scores)
+        score = raw_score / max_score * 100
         
         # 创建摘要数据
         summary_data = {
-            "dataset_name": all_results[0]["dataset_name"],
-            "generate_model_name": all_results[0]["generate_model_name"],
-            "evaluate_model_name": all_results[0]["evaluate_model_name"],
-            "total_questions": total_questions,
-            "valid_scores": len(valid_scores),
             "completion_ratio": completion_ratio,
-            "average_score": avg_score,
-            "max_score": max_score,
-            "min_score": min_score,
-            "score_distribution": score_distribution
+            "raw_score": raw_score,
+            "score": score,
+            "total_questions": total_questions,
+            "valid_questions": len(valid_scores)
         }
         
         # 写入摘要文件
@@ -353,15 +486,7 @@ def generate_score_summary(all_results, score_file, completion_threshold=0.95):
     else:
         print(f"完成率 ({completion_ratio:.2%}) 未达到阈值 ({completion_threshold:.2%})，暂不生成评分摘要")
 
-if __name__ == "__main__":
-    # 加载环境变量
-    load_dotenv()
-    
-    # 从头开始评估
-    results = evaluate_llmjudge("MT-Bench", "gpt-3.5-turbo", "gpt-4o", max_workers=4, evaluate_mode="start_from_beginning")
-    
-    # 从断点处继续评估
-    #results = evaluate_llmjudge("MT-Bench", "gpt-3.5-turbo", "gpt-4o", max_workers=4, evaluate_mode="resume_from_checkpoint")
+
 
 
 

@@ -1,0 +1,542 @@
+{
+  "test_config": {
+    "concurrent_levels": [
+      1,
+      4,
+      8,
+      16,
+      32
+    ],
+    "tasks_per_level": 10,
+    "avg_task_time": 5.0
+  },
+  "results": [
+    {
+      "concurrent_level": 1,
+      "total_tasks": 10,
+      "successful_tasks": 10,
+      "failed_tasks": 0,
+      "success_rate": 100.0,
+      "avg_execution_time": 15.469778609275817,
+      "min_execution_time": 15.348435163497925,
+      "max_execution_time": 15.564131021499634,
+      "std_deviation": 0.0767461124277228,
+      "throughput": 0.06464135595738872,
+      "total_test_time": 154.699725151062,
+      "task_results": [
+        {
+          "task_id": "task_1_1",
+          "concurrent_level": 1,
+          "success": true,
+          "execution_time": 15.549657106399536,
+          "start_time": 1749432630.2204456,
+          "end_time": 1749432645.7701027,
+          "error": null
+        },
+        {
+          "task_id": "task_1_2",
+          "concurrent_level": 1,
+          "success": true,
+          "execution_time": 15.447503089904785,
+          "start_time": 1749432645.7702746,
+          "end_time": 1749432661.2177777,
+          "error": null
+        },
+        {
+          "task_id": "task_1_3",
+          "concurrent_level": 1,
+          "success": true,
+          "execution_time": 15.564131021499634,
+          "start_time": 1749432661.2179391,
+          "end_time": 1749432676.7820702,
+          "error": null
+        },
+        {
+          "task_id": "task_1_4",
+          "concurrent_level": 1,
+          "success": true,
+          "execution_time": 15.438385963439941,
+          "start_time": 1749432676.7822125,
+          "end_time": 1749432692.2205985,
+          "error": null
+        },
+        {
+          "task_id": "task_1_5",
+          "concurrent_level": 1,
+          "success": true,
+          "execution_time": 15.37291169166565,
+          "start_time": 1749432692.2207592,
+          "end_time": 1749432707.5936708,
+          "error": null
+        },
+        {
+          "task_id": "task_1_6",
+          "concurrent_level": 1,
+          "success": true,
+          "execution_time": 15.348435163497925,
+          "start_time": 1749432707.5938253,
+          "end_time": 1749432722.9422605,
+          "error": null
+        },
+        {
+          "task_id": "task_1_7",
+          "concurrent_level": 1,
+          "success": true,
+          "execution_time": 15.488279342651367,
+          "start_time": 1749432722.942415,
+          "end_time": 1749432738.4306943,
+          "error": null
+        },
+        {
+          "task_id": "task_1_8",
+          "concurrent_level": 1,
+          "success": true,
+          "execution_time": 15.415890216827393,
+          "start_time": 1749432738.430856,
+          "end_time": 1749432753.8467462,
+          "error": null
+        },
+        {
+          "task_id": "task_1_9",
+          "concurrent_level": 1,
+          "success": true,
+          "execution_time": 15.53170371055603,
+          "start_time": 1749432753.8468688,
+          "end_time": 1749432769.3785725,
+          "error": null
+        },
+        {
+          "task_id": "task_1_10",
+          "concurrent_level": 1,
+          "success": true,
+          "execution_time": 15.540888786315918,
+          "start_time": 1749432769.378722,
+          "end_time": 1749432784.9196107,
+          "error": null
+        }
+      ]
+    },
+    {
+      "concurrent_level": 4,
+      "total_tasks": 10,
+      "successful_tasks": 10,
+      "failed_tasks": 0,
+      "success_rate": 100.0,
+      "avg_execution_time": 15.74124743938446,
+      "min_execution_time": 15.522348880767822,
+      "max_execution_time": 16.071054935455322,
+      "std_deviation": 0.15350776661319843,
+      "throughput": 0.21087954186728436,
+      "total_test_time": 47.42043685913086,
+      "task_results": [
+        {
+          "task_id": "task_4_4",
+          "concurrent_level": 4,
+          "success": true,
+          "execution_time": 15.690468072891235,
+          "start_time": 1749432786.9231422,
+          "end_time": 1749432802.6136103,
+          "error": null
+        },
+        {
+          "task_id": "task_4_1",
+          "concurrent_level": 4,
+          "success": true,
+          "execution_time": 15.714859247207642,
+          "start_time": 1749432786.920799,
+          "end_time": 1749432802.6356583,
+          "error": null
+        },
+        {
+          "task_id": "task_4_3",
+          "concurrent_level": 4,
+          "success": true,
+          "execution_time": 15.717785120010376,
+          "start_time": 1749432786.9221752,
+          "end_time": 1749432802.6399603,
+          "error": null
+        },
+        {
+          "task_id": "task_4_2",
+          "concurrent_level": 4,
+          "success": true,
+          "execution_time": 15.740414381027222,
+          "start_time": 1749432786.9211671,
+          "end_time": 1749432802.6615815,
+          "error": null
+        },
+        {
+          "task_id": "task_4_5",
+          "concurrent_level": 4,
+          "success": true,
+          "execution_time": 15.625324726104736,
+          "start_time": 1749432802.613757,
+          "end_time": 1749432818.2390816,
+          "error": null
+        },
+        {
+          "task_id": "task_4_7",
+          "concurrent_level": 4,
+          "success": true,
+          "execution_time": 15.628722429275513,
+          "start_time": 1749432802.6400423,
+          "end_time": 1749432818.2687647,
+          "error": null
+        },
+        {
+          "task_id": "task_4_8",
+          "concurrent_level": 4,
+          "success": true,
+          "execution_time": 15.82349705696106,
+          "start_time": 1749432802.6617131,
+          "end_time": 1749432818.4852102,
+          "error": null
+        },
+        {
+          "task_id": "task_4_6",
+          "concurrent_level": 4,
+          "success": true,
+          "execution_time": 15.877999544143677,
+          "start_time": 1749432802.6357527,
+          "end_time": 1749432818.5137522,
+          "error": null
+        },
+        {
+          "task_id": "task_4_9",
+          "concurrent_level": 4,
+          "success": true,
+          "execution_time": 15.522348880767822,
+          "start_time": 1749432818.2392027,
+          "end_time": 1749432833.7615516,
+          "error": null
+        },
+        {
+          "task_id": "task_4_10",
+          "concurrent_level": 4,
+          "success": true,
+          "execution_time": 16.071054935455322,
+          "start_time": 1749432818.268912,
+          "end_time": 1749432834.339967,
+          "error": null
+        }
+      ]
+    },
+    {
+      "concurrent_level": 8,
+      "total_tasks": 10,
+      "successful_tasks": 10,
+      "failed_tasks": 0,
+      "success_rate": 100.0,
+      "avg_execution_time": 15.842674493789673,
+      "min_execution_time": 15.408533811569214,
+      "max_execution_time": 16.086925745010376,
+      "std_deviation": 0.2312811050511028,
+      "throughput": 0.319112296067576,
+      "total_test_time": 31.336930990219116,
+      "task_results": [
+        {
+          "task_id": "task_8_3",
+          "concurrent_level": 8,
+          "success": true,
+          "execution_time": 15.718140125274658,
+          "start_time": 1749432836.343765,
+          "end_time": 1749432852.0619051,
+          "error": null
+        },
+        {
+          "task_id": "task_8_7",
+          "concurrent_level": 8,
+          "success": true,
+          "execution_time": 15.798999786376953,
+          "start_time": 1749432836.347219,
+          "end_time": 1749432852.1462188,
+          "error": null
+        },
+        {
+          "task_id": "task_8_1",
+          "concurrent_level": 8,
+          "success": true,
+          "execution_time": 15.829380989074707,
+          "start_time": 1749432836.3420525,
+          "end_time": 1749432852.1714334,
+          "error": null
+        },
+        {
+          "task_id": "task_8_8",
+          "concurrent_level": 8,
+          "success": true,
+          "execution_time": 15.978412866592407,
+          "start_time": 1749432836.3484752,
+          "end_time": 1749432852.326888,
+          "error": null
+        },
+        {
+          "task_id": "task_8_4",
+          "concurrent_level": 8,
+          "success": true,
+          "execution_time": 16.017546892166138,
+          "start_time": 1749432836.3441806,
+          "end_time": 1749432852.3617275,
+          "error": null
+        },
+        {
+          "task_id": "task_8_6",
+          "concurrent_level": 8,
+          "success": true,
+          "execution_time": 16.016716718673706,
+          "start_time": 1749432836.3467476,
+          "end_time": 1749432852.3634644,
+          "error": null
+        },
+        {
+          "task_id": "task_8_2",
+          "concurrent_level": 8,
+          "success": true,
+          "execution_time": 16.040974140167236,
+          "start_time": 1749432836.3424032,
+          "end_time": 1749432852.3833773,
+          "error": null
+        },
+        {
+          "task_id": "task_8_5",
+          "concurrent_level": 8,
+          "success": true,
+          "execution_time": 16.086925745010376,
+          "start_time": 1749432836.3452134,
+          "end_time": 1749432852.4321392,
+          "error": null
+        },
+        {
+          "task_id": "task_8_9",
+          "concurrent_level": 8,
+          "success": true,
+          "execution_time": 15.408533811569214,
+          "start_time": 1749432852.0620747,
+          "end_time": 1749432867.4706085,
+          "error": null
+        },
+        {
+          "task_id": "task_8_10",
+          "concurrent_level": 8,
+          "success": true,
+          "execution_time": 15.531113862991333,
+          "start_time": 1749432852.1463573,
+          "end_time": 1749432867.6774712,
+          "error": null
+        }
+      ]
+    },
+    {
+      "concurrent_level": 16,
+      "total_tasks": 10,
+      "successful_tasks": 10,
+      "failed_tasks": 0,
+      "success_rate": 100.0,
+      "avg_execution_time": 15.991743755340575,
+      "min_execution_time": 15.82030200958252,
+      "max_execution_time": 16.141990661621094,
+      "std_deviation": 0.11327521500833619,
+      "throughput": 0.6192245971371545,
+      "total_test_time": 16.149229288101196,
+      "task_results": [
+        {
+          "task_id": "task_16_1",
+          "concurrent_level": 16,
+          "success": true,
+          "execution_time": 15.82030200958252,
+          "start_time": 1749432869.67966,
+          "end_time": 1749432885.499962,
+          "error": null
+        },
+        {
+          "task_id": "task_16_6",
+          "concurrent_level": 16,
+          "success": true,
+          "execution_time": 15.835636377334595,
+          "start_time": 1749432869.6834955,
+          "end_time": 1749432885.519132,
+          "error": null
+        },
+        {
+          "task_id": "task_16_4",
+          "concurrent_level": 16,
+          "success": true,
+          "execution_time": 15.929728507995605,
+          "start_time": 1749432869.681747,
+          "end_time": 1749432885.6114755,
+          "error": null
+        },
+        {
+          "task_id": "task_16_8",
+          "concurrent_level": 16,
+          "success": true,
+          "execution_time": 15.947768926620483,
+          "start_time": 1749432869.6856568,
+          "end_time": 1749432885.6334257,
+          "error": null
+        },
+        {
+          "task_id": "task_16_10",
+          "concurrent_level": 16,
+          "success": true,
+          "execution_time": 15.966050386428833,
+          "start_time": 1749432869.687453,
+          "end_time": 1749432885.6535034,
+          "error": null
+        },
+        {
+          "task_id": "task_16_3",
+          "concurrent_level": 16,
+          "success": true,
+          "execution_time": 16.013779401779175,
+          "start_time": 1749432869.6813476,
+          "end_time": 1749432885.695127,
+          "error": null
+        },
+        {
+          "task_id": "task_16_9",
+          "concurrent_level": 16,
+          "success": true,
+          "execution_time": 16.030983686447144,
+          "start_time": 1749432869.6866207,
+          "end_time": 1749432885.7176044,
+          "error": null
+        },
+        {
+          "task_id": "task_16_2",
+          "concurrent_level": 16,
+          "success": true,
+          "execution_time": 16.11525249481201,
+          "start_time": 1749432869.6800284,
+          "end_time": 1749432885.795281,
+          "error": null
+        },
+        {
+          "task_id": "task_16_5",
+          "concurrent_level": 16,
+          "success": true,
+          "execution_time": 16.1159451007843,
+          "start_time": 1749432869.6824305,
+          "end_time": 1749432885.7983756,
+          "error": null
+        },
+        {
+          "task_id": "task_16_7",
+          "concurrent_level": 16,
+          "success": true,
+          "execution_time": 16.141990661621094,
+          "start_time": 1749432869.6853495,
+          "end_time": 1749432885.8273401,
+          "error": null
+        }
+      ]
+    },
+    {
+      "concurrent_level": 32,
+      "total_tasks": 10,
+      "successful_tasks": 10,
+      "failed_tasks": 0,
+      "success_rate": 100.0,
+      "avg_execution_time": 16.117222332954405,
+      "min_execution_time": 15.53148865699768,
+      "max_execution_time": 18.12200140953064,
+      "std_deviation": 0.7329014407913643,
+      "throughput": 0.5517472901687048,
+      "total_test_time": 18.124239444732666,
+      "task_results": [
+        {
+          "task_id": "task_32_6",
+          "concurrent_level": 32,
+          "success": true,
+          "execution_time": 15.53148865699768,
+          "start_time": 1749432887.8340492,
+          "end_time": 1749432903.365538,
+          "error": null
+        },
+        {
+          "task_id": "task_32_10",
+          "concurrent_level": 32,
+          "success": true,
+          "execution_time": 15.718733072280884,
+          "start_time": 1749432887.836834,
+          "end_time": 1749432903.555567,
+          "error": null
+        },
+        {
+          "task_id": "task_32_2",
+          "concurrent_level": 32,
+          "success": true,
+          "execution_time": 15.748820543289185,
+          "start_time": 1749432887.8299637,
+          "end_time": 1749432903.5787842,
+          "error": null
+        },
+        {
+          "task_id": "task_32_9",
+          "concurrent_level": 32,
+          "success": true,
+          "execution_time": 15.824621200561523,
+          "start_time": 1749432887.836347,
+          "end_time": 1749432903.6609683,
+          "error": null
+        },
+        {
+          "task_id": "task_32_7",
+          "concurrent_level": 32,
+          "success": true,
+          "execution_time": 15.938107967376709,
+          "start_time": 1749432887.834649,
+          "end_time": 1749432903.772757,
+          "error": null
+        },
+        {
+          "task_id": "task_32_4",
+          "concurrent_level": 32,
+          "success": true,
+          "execution_time": 15.979894876480103,
+          "start_time": 1749432887.8311913,
+          "end_time": 1749432903.8110862,
+          "error": null
+        },
+        {
+          "task_id": "task_32_1",
+          "concurrent_level": 32,
+          "success": true,
+          "execution_time": 16.00568723678589,
+          "start_time": 1749432887.829634,
+          "end_time": 1749432903.8353212,
+          "error": null
+        },
+        {
+          "task_id": "task_32_5",
+          "concurrent_level": 32,
+          "success": true,
+          "execution_time": 16.036920309066772,
+          "start_time": 1749432887.8317268,
+          "end_time": 1749432903.868647,
+          "error": null
+        },
+        {
+          "task_id": "task_32_8",
+          "concurrent_level": 32,
+          "success": true,
+          "execution_time": 16.265948057174683,
+          "start_time": 1749432887.8353088,
+          "end_time": 1749432904.1012568,
+          "error": null
+        },
+        {
+          "task_id": "task_32_3",
+          "concurrent_level": 32,
+          "success": true,
+          "execution_time": 18.12200140953064,
+          "start_time": 1749432887.830339,
+          "end_time": 1749432905.9523404,
+          "error": null
+        }
+      ]
+    }
+  ],
+  "total_duration": 277.7338788509369,
+  "timestamp": "2025-06-09T09:35:07.954416"
+}

@@ -1,7 +1,11 @@
 {
     "MMStar": {
         "language": "en",
-        "system_prompt": {
+        "max_score": 100,
+        "background": {
+
+        },
+        "case": {
 
         },
         "question": {
@@ -32,6 +36,42 @@
             "subset_name": "",
             "split_name": "val",
             "key": "image"
+        }
+    },
+    "TestImageMCQ": {
+        "language": "en",
+        "max_score": 100,
+        "background": {
+
+        },
+        "case": {
+
+        },
+        "question": {
+            "loading_way": "json",
+            "path": ["data/test_image_mcq/questions.json"],
+            "key": "question",
+            "question_type_key": ""
+        },
+        "choices": {
+            "loading_way": "json",
+            "path": ["data/test_image_mcq/questions.json"],
+            "key": "choices",
+            "sub_key": ["A", "B", "C", "D"]
+        },
+        "answer": {
+            "loading_way": "json",
+            "path": ["data/test_image_mcq/questions.json"],
+            "key": "answer",
+            "answer_type": "choice"
+        },
+        "hint": {
+
+        },
+        "image": {
+            "loading_way": "json",
+            "path": ["data/test_image_mcq/questions.json"],
+            "key": "image_path"
         }
     }
 }

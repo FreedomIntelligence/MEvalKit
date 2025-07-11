@@ -1,0 +1,29 @@
+# Web框架
+Flask>=2.0.0,<3.0.0
+Flasgger>=0.9.5
+
+# 机器学习和数据处理
+datasets>=3.1.0
+tqdm>=4.60.0
+numpy>=1.20.0
+pandas>=1.5.0
+
+# 图像处理
+Pillow>=9.0.0
+opencv-python>=4.5.0
+
+# API客户端
+requests>=2.25.0
+openai>=1.0.0
+
+# 环境变量管理
+python-dotenv>=0.19.0
+
+# 系统监控
+psutil>=5.8.0
+
+# 类型注解支持 (Python 3.8+已内置大部分功能)
+typing-extensions>=4.0.0
+
+# Web模板引擎 (Flask已包含)
+Jinja2>=3.0.0 

@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>开始新评测 - LLM评测平台</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .form-card { max-width: 800px; margin: 0 auto; padding: 2rem; border-radius: 0.5rem; box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15); background-color: #fff; }
+        .form-title { margin-bottom: 1.5rem; padding-bottom: 1rem; border-bottom: 1px solid #dee2e6; }
+        .form-section { margin-bottom: 2rem; }
+        .user-info { background-color: #f8f9fa; padding: 0.5rem 1rem; border-radius: 0.25rem; margin-bottom: 1rem; }
+        .mode-section { border: 1px solid #dee2e6; border-radius: 0.5rem; padding: 1.5rem; margin-bottom: 1.5rem; }
+        .model-type-section { border: 1px solid #dee2e6; border-radius: 0.5rem; padding: 1.5rem; margin-bottom: 1.5rem; }
+    </style>
+</head>
+<body>
+    <div class="container mt-4 mb-5">
+        <nav class="navbar navbar-expand-lg navbar-light bg-light mb-4">
+            <div class="container-fluid">
+                <a class="navbar-brand" href="/">MEvalKit</a>
+                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                    <span class="navbar-toggler-icon"></span>
+                </button>
+                <div class="collapse navbar-collapse" id="navbarNav">
+                    <ul class="navbar-nav me-auto">
+                        <li class="nav-item"><a class="nav-link" href="/">总榜</a></li>
+                        <li class="nav-item"><a class="nav-link" href="/specific-leaderboard">分榜</a></li>
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle active" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown">
+                                评测管理
+                            </a>
+                            <ul class="dropdown-menu">
+                                <li><a class="dropdown-item active" href="/new-evaluation">开始新评测</a></li>
+                                <li><a class="dropdown-item" href="/view-evaluations">查看评测</a></li>
+                            </ul>
+                        </li>
+                    </ul>
+                    <div class="user-info">用户：{{ user_id }}</div>
+                </div>
+            </div>
+        </nav>
+        
+        <div class="form-card">
+            <h1 class="form-title">开始新评测</h1>
+            
+            <form action="/run-evaluation" method="post" id="evaluationForm">
+                <input type="hidden" name="user_id" value="{{ user_id }}">
+                
+                <div class="form-section">
+                    <h4>选择评测模式</h4>
+                    <div class="mode-section">
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="evaluation_mode" id="automatic_mode" value="automatic" checked onchange="handleModeChange()">
+                            <label class="form-check-label" for="automatic_mode">自动评测 (automatic)</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="evaluation_mode" id="manual_mode" value="manual" onchange="handleModeChange()">
+                            <label class="form-check-label" for="manual_mode">手动评测 (manual)</label>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="form-section">
+                    <h4>选择评测数据集</h4>
+                    <select class="form-select" id="dataset-select" name="dataset" required>
+                        <option value="" disabled selected>请选择数据集</option>
+                        <optgroup label="文本数据集">
+                            {% for dataset in text_datasets %}
+                            <option value="{{ dataset }}">{{ dataset }}</option>
+                            {% endfor %}
+                        </optgroup>
+                        <optgroup label="多模态数据集">
+                            {% for dataset in multimodal_datasets %}
+                            <option value="{{ dataset }}">{{ dataset }}</option>
+                            {% endfor %}
+                        </optgroup>
+                        <optgroup label="LLM判断数据集">
+                            {% for dataset in llmjudge_datasets %}
+                            <option value="{{ dataset }}">{{ dataset }}</option>
+                            {% endfor %}
+                        </optgroup>
+                    </select>
+                </div>
+                
+                <div id="automatic-content" class="form-section">
+                    
+                    <div class="mb-3">
+                        <label for="model-name" class="form-label">模型名称</label>
+                        <input type="text" class="form-control" id="model-name" name="model_name" placeholder="请输入模型名称，如 gpt-4o, Qwen2-VL-7B-Instruct 等" required>
+                        <div class="form-text">输入要评测的模型名称，支持各种模型格式</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="api-base" class="form-label">API接口路径（可选）</label>
+                        <input type="text" class="form-control" id="api-base" name="api_base" placeholder="API接口地址，如 http://localhost:8000/v1">
+                        <div class="form-text">如果需要调用API，请输入API接口地址</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="model-key" class="form-label">模型密钥（可选）</label>
+                        <input type="password" class="form-control" id="model-key" name="model_key" placeholder="API密钥或访问令牌">
+                        <div class="form-text">如果需要调用API，请输入访问密钥</div>
+                    </div>
+                    
+
+                    
+                    <div class="mb-3">
+                        <label for="question-limitation" class="form-label">评测题目数量</label>
+                        <input type="number" class="form-control" id="question-limitation" name="question_limitation" placeholder="留空则评测全部题目">
+                        <div id="question-limitation-feedback" class="form-text">请输入要评测的题目数量（正整数）。如果留空或输入无效值，将评测全部题目。</div>
+                    </div>
+                </div>
+                
+                <div id="manual-content" class="form-section" style="display: none;">
+                    <div class="alert alert-info mb-3">
+                        <strong>手动评测模式</strong><br>手动评测模式需要提供已有的模型响应数据。
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="manual-model-name" class="form-label">模型名称</label>
+                        <input type="text" class="form-control" id="manual-model-name" name="model_name" placeholder="请输入模型名称，如 gpt-4o, Qwen2-VL-7B-Instruct 等">
+                        <div class="form-text">输入要评测的模型名称，支持各种模型格式</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="manual-api-base" class="form-label">API接口路径（可选）</label>
+                        <input type="text" class="form-control" id="manual-api-base" name="api_base" placeholder="API接口地址，如 http://localhost:8000/v1">
+                        <div class="form-text">如果需要调用API进行评测，请输入API接口地址</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="manual-model-key" class="form-label">模型密钥（可选）</label>
+                        <input type="password" class="form-control" id="manual-model-key" name="model_key" placeholder="API密钥或访问令牌">
+                        <div class="form-text">如果需要调用API，请输入访问密钥</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="response-url" class="form-label">响应数据URL</label>
+                        <input type="url" class="form-control" id="response-url" name="response_url" placeholder="https://example.com/responses.json">
+                        <div class="form-text">提供包含模型响应数据的JSON文件URL</div>
+                    </div>
+                    
+
+                    
+                    <div class="mb-3">
+                        <label for="manual-question-limitation" class="form-label">评测题目数量</label>
+                        <input type="number" class="form-control" id="manual-question-limitation" name="question_limitation" placeholder="留空则评测全部题目">
+                        <div id="manual-question-limitation-feedback" class="form-text">请输入要评测的题目数量（正整数）。如果留空或输入无效值，将评测全部题目。</div>
+                    </div>
+                </div>
+                
+                <div class="d-grid gap-2 mt-4">
+                    <button type="submit" class="btn btn-primary">开始评测</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function handleModeChange() {
+            const automaticMode = document.getElementById('automatic_mode');
+            const automaticContent = document.getElementById('automatic-content');
+            const manualContent = document.getElementById('manual-content');
+            
+            if (automaticMode.checked) {
+                automaticContent.style.display = 'block';
+                manualContent.style.display = 'none';
+            } else {
+                automaticContent.style.display = 'none';
+                manualContent.style.display = 'block';
+            }
+        }
+        
+
+        
+        // 自动模式的题目数量验证
+        document.getElementById('question-limitation').addEventListener('input', function() {
+            const input = this.value.trim();
+            const feedback = document.getElementById('question-limitation-feedback');
+            
+            if (input === '') {
+                feedback.textContent = '请输入要评测的题目数量（正整数）。如果留空或输入无效值，将评测全部题目。';
+                feedback.classList.remove('text-danger');
+                return;
+            }
+            
+            const numValue = Number(input);
+            if (isNaN(numValue) || !Number.isInteger(numValue) || numValue <= 0) {
+                feedback.textContent = '输入无效！将评测全部题目。';
+                feedback.classList.add('text-danger');
+            } else {
+                feedback.textContent = `将评测前 ${numValue} 个题目。`;
+                feedback.classList.remove('text-danger');
+            }
+        });
+        
+        // 手动模式的题目数量验证
+        document.getElementById('manual-question-limitation').addEventListener('input', function() {
+            const input = this.value.trim();
+            const feedback = document.getElementById('manual-question-limitation-feedback');
+            
+            if (input === '') {
+                feedback.textContent = '请输入要评测的题目数量（正整数）。如果留空或输入无效值，将评测全部题目。';
+                feedback.classList.remove('text-danger');
+                return;
+            }
+            
+            const numValue = Number(input);
+            if (isNaN(numValue) || !Number.isInteger(numValue) || numValue <= 0) {
+                feedback.textContent = '输入无效！将评测全部题目。';
+                feedback.classList.add('text-danger');
+            } else {
+                feedback.textContent = `将评测前 ${numValue} 个题目。`;
+                feedback.classList.remove('text-danger');
+            }
+        });
+        
+        document.getElementById('evaluationForm').addEventListener('submit', function(event) {
+            event.preventDefault();
+            
+            const evaluationMode = document.querySelector('input[name="evaluation_mode"]:checked').value;
+            const datasetSelect = document.getElementById('dataset-select');
+            
+            if (!datasetSelect.value) {
+                alert('请选择评测数据集');
+                return;
+            }
+            
+            if (evaluationMode === 'automatic') {
+                const modelName = document.getElementById('model-name');
+                
+                if (!modelName.value.trim()) {
+                    alert('请输入模型名称');
+                    return;
+                }
+            } else if (evaluationMode === 'manual') {
+                const manualModelName = document.getElementById('manual-model-name');
+                const responseUrl = document.getElementById('response-url');
+                
+                if (!manualModelName.value.trim()) {
+                    alert('请输入模型名称');
+                    return;
+                }
+                
+                if (!responseUrl.value.trim()) {
+                    alert('请输入响应数据URL');
+                    return;
+                }
+                
+                // 验证URL格式
+                try {
+                    new URL(responseUrl.value.trim());
+                } catch (e) {
+                    alert('请输入有效的URL地址');
+                    return;
+                }
+            }
+            
+            // 验证题目数量
+            let questionLimitation = '';
+            if (evaluationMode === 'automatic') {
+                questionLimitation = document.getElementById('question-limitation').value.trim();
+            } else {
+                questionLimitation = document.getElementById('manual-question-limitation').value.trim();
+            }
+            
+            if (questionLimitation !== '') {
+                const numValue = Number(questionLimitation);
+                if (isNaN(numValue) || !Number.isInteger(numValue) || numValue <= 0) {
+                    if (!confirm('您输入的题目数量无效，将评测全部题目。是否继续？')) {
+                        return;
+                    }
+                }
+            }
+            
+            const submitButton = document.querySelector('button[type="submit"]');
+            const originalText = submitButton.textContent;
+            submitButton.textContent = '创建中...';
+            submitButton.disabled = true;
+            
+            const formData = new FormData(this);
+            
+            if (evaluationMode === 'automatic') {
+                const modelName = document.getElementById('model-name');
+                formData.set('model_name', modelName.value.trim());
+            } else if (evaluationMode === 'manual') {
+                // 手动模式使用手动模式的字段值
+                const manualModelName = document.getElementById('manual-model-name');
+                const manualApiBase = document.getElementById('manual-api-base');
+                const manualModelKey = document.getElementById('manual-model-key');
+                const responseUrl = document.getElementById('response-url');
+                const manualQuestionLimitation = document.getElementById('manual-question-limitation');
+                
+                formData.set('model_name', manualModelName.value);
+                formData.set('api_base', manualApiBase.value.trim());
+                formData.set('model_key', manualModelKey.value.trim());
+                formData.set('response_url', responseUrl.value.trim());
+                formData.set('question_limitation', manualQuestionLimitation.value.trim());
+            }
+            
+            console.log('开始提交表单...');
+            console.log('表单数据:', Object.fromEntries(formData));
+            
+            fetch('/run-evaluation', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => {
+                console.log('响应状态:', response.status);
+                console.log('响应头:', response.headers);
+                return response.json();
+            })
+            .then(data => {
+                if (data.result) {
+                    window.location.href = data.data.redirect_url;
+                } else {
+                    alert('创建任务失败: ' + data.msg);
+                    submitButton.textContent = originalText;
+                    submitButton.disabled = false;
+                }
+            })
+            .catch(error => {
+                console.error('提交表单出错:', error);
+                alert('提交表单时发生错误，请重试');
+                submitButton.textContent = originalText;
+                submitButton.disabled = false;
+            });
+        });
+        
+        document.addEventListener('DOMContentLoaded', function() {
+            handleModeChange();
+        });
+    </script>
+</body>
+</html>
+ 

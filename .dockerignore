@@ -1,0 +1,90 @@
+# Git 相关
+.git/
+.gitignore
+
+# Python 相关
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# 虚拟环境
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# IDE 相关
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# 日志文件
+*.log
+logs/
+
+# OS 相关
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# 临时文件
+*.tmp
+*.temp
+
+# 测试结果和缓存目录（但保留测试脚本）
+stress_test_results/
+results/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# 确保压力测试脚本被包含
+!evaluation_stress_test.py
+!quick_stress_test.py
+!run_stress_test.sh
+
+# 开发容器
+.devcontainer/
+
+# 文档
+*.md
+!README.md
+!DOCKER_DEPLOYMENT.md
+
+# Docker 相关文件（这些文件本身不需要在镜像中）
+Dockerfile
+Dockerfile.prod
+docker-compose.yml
+.dockerignore
+
+# 许可证文件不需要排除，保留在镜像中
+# LICENSE 

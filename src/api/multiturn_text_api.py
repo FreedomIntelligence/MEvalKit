@@ -9,13 +9,17 @@ from dotenv import load_dotenv
 from typing import Dict, List, Any
 
 class MultiturnTextAPI:
-    def __init__(self, model_name: str, system_prompt: str, user_prompt: str, temperature: float, conversation_id: str):
+    def __init__(self, model_name: str, system_prompt: str, user_prompt: str, temperature: float, conversation_id: str, model_key: str, api_base: str):
         self.model_name = model_name
         self.system_prompt = system_prompt
         self.user_prompt = user_prompt
         self.temperature = temperature
         self.conversation_history : Dict[str, List[Dict[str, Any]]] = {}
         self.conversation_id = conversation_id
+        if model_key and model_key.strip():
+            os.environ['OPENAI_API_KEY'] = model_key
+        if api_base and api_base.strip():
+            os.environ['OPENAI_API_BASE'] = api_base
 
     def generate_response(self) -> str:
         """
@@ -28,7 +32,6 @@ class MultiturnTextAPI:
         返回:
             模型的回复
         """
-        load_dotenv()
         url = os.environ['OPENAI_API_BASE'] + "/chat/completions"
         
         # 初始化会话历史（如果不存在）
@@ -66,7 +69,9 @@ class MultiturnTextAPI:
         # 发送请求
         response = requests.request("POST", url, headers=headers, json=payload)
         response_data = response.json()
-        print(response_data)
+        if "error" in response_data:
+            return "Neglected"
+        #print(response_data)
         # 获取助手回复
         assistant_message = response_data['choices'][0]['message']['content']
         

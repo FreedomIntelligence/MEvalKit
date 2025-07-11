@@ -1,6 +1,7 @@
 import sys
 import os
 import json
+import requests
 from pathlib import Path
 from openai import BadRequestError, AuthenticationError
 
@@ -12,6 +13,7 @@ from src.dataset.Text.TextMCQ import *
 from src.api.text_api import *
 from src.utils.MCQ_constants import *
 from src.utils.default_prompts import *
+from src.utils.model_and_dataset import *
 from tqdm import tqdm
 import concurrent.futures
 from typing import List, Tuple, Dict, Any, Literal
@@ -109,6 +111,11 @@ def shuffle_and_convert(dataset: TextMCQ):
     new_answer = []
 
     for choice_list, answer, question_type in zip(choices, answers, question_type_list):
+        if question_type in SINGLE_CHOICE_LIST:
+            question_type = "single"
+        elif question_type in MULTIPLE_CHOICE_LIST:
+            question_type = "multiple"
+        
         # 多选题不打乱选项顺序
         if question_type == "multiple":
             new_choices.append(choice_list)
@@ -147,13 +154,21 @@ def process_question(args):
     返回:
         问题索引、模型回答和正确答案的元组
     """
-    i, dataset_name, question, question_type, choices, answer, hint, language, model_name = args
+    i, dataset_name, background, case, question, question_type, choices, answer, hint, language, model_path, model_key, api_base = args
+
     
     # 统一问题类型格式
     if question_type in SINGLE_CHOICE_LIST:
         question_type = "single"
     elif question_type in MULTIPLE_CHOICE_LIST:
         question_type = "multiple"
+
+    case_prompt = ""
+    if case is not None:
+        if language == "en":
+            case_prompt = f"Case of the question: {case}"
+        elif language == "zh":
+            case_prompt = f"问题背景：{case}"
         
     # 构建问题提示
     question_prompt = question + "\n"
@@ -162,6 +177,8 @@ def process_question(args):
     if hint != "":
         question_prompt += f"\nHint: {hint}"
         
+    question_prompt = case_prompt + question_prompt
+
     # 选择适当的提示模板
     if language == 'en' and question_type == 'single':
         system_prompt = MCQ_TEMPLATE_SINGLE_EN
@@ -171,16 +188,26 @@ def process_question(args):
         system_prompt = MCQ_TEMPLATE_SINGLE_ZH
     elif language == "zh" and question_type == "multiple":
         system_prompt = MCQ_TEMPLATE_MULTIPLE_ZH
+    
+    if background is not None and language == "en":
+        system_prompt = system_prompt + f"\nBackground: {background}"
+    elif background is not None and language == "zh":
+        system_prompt = system_prompt + f"\n任务背景：{background}"
+
 
     # 获取回答
     try:
-        chat = TextAPI(model_name, system_prompt, question_prompt, 0)
-        response = chat.generate_response()
-        extracted_response = None
-        if question_type == "single":
-            extracted_response = extract_answer(response, dataset_name)
-        elif question_type == "multiple":
-            extracted_response = extract_multi_answer(response, dataset_name)
+        if model_path == "stressTest":
+            extracted_response = "A"
+            time.sleep(1)
+        else:
+            chat = TextAPI(model_path, system_prompt, question_prompt, 0, model_key, api_base)
+            response = chat.generate_response()
+            extracted_response = None
+            if question_type == "single":
+                extracted_response = extract_answer(response, dataset_name)
+            elif question_type == "multiple":
+                extracted_response = extract_multi_answer(response, dataset_name)
     except Exception as e:
         print(f"处理问题 {i} 时出错: {str(e)}")
         extracted_response = "Neglected"
@@ -231,10 +258,53 @@ def read_json_file(file_path):
         print(f"读取JSON文件时出错: {str(e)}")
         return None
 
+def evaluate_mcq_manual(
+        user_id: str = "",
+        dataset_name: str = "MMStar",
+        model_name: str = "gpt-4o",
+        business_id: str = "",
+        question_limitation: int = 100,
+        response_url: str = "",
+):
+    dataset = TextMCQ(dataset_name)
+    dataset.max_score = dataset.dataset_info['max_score']
+    language = dataset.language
 
-def evaluate_mcq(dataset_name: str, model_name: str, max_workers=64, 
-                 evaluate_mode: Literal["start_from_beginning", "resume_from_checkpoint", "give_answers"] = "start_from_beginning",
-                 question_limitation: int = 100):
+    if question_limitation >= len(dataset.questions):
+        question_limitation = len(dataset.questions)
+
+    result_file = f"results/{user_id}/{business_id}_manual_result.json"
+    score_file = f"results/{user_id}/{business_id}_manual_score.json"
+
+    try:
+        response = requests.get(response_url, timeout=60)
+        response = response.json()
+    except Exception as e:
+        print(f"获取响应时出错: {str(e)}")
+        return None
+
+    result = []
+    
+    for i in range(question_limitation):
+        result.append({
+            "id": i,
+            "response": response[i]["response"]
+        })
+
+    write_json_file(result, result_file)
+
+    return calculate_valid_ratio_and_score(result_file, dataset.answers, score_file, max_score=dataset.max_score, business_id=business_id)
+
+def evaluate_mcq_automatic(
+        user_id: str = "",
+        dataset_name: str = "MMLU",
+        model_name: str = "gpt-3.5-turbo",
+        model_key: str = "",
+        api_base: str = "",
+        business_id: str = "",
+        question_limitation: int = 100,
+        max_workers: int = 64
+):
     """
     并行评估文本问题
     
@@ -242,83 +312,58 @@ def evaluate_mcq(dataset_name: str, model_name: str, max_workers=64,
         dataset_name: 数据集名称
         model_name: 模型名称
         max_workers: 最大并行工作线程数
-        evaluate_mode: 评估模式，"start_from_beginning"从头开始，"resume_from_checkpoint"从断点继续
+        evaluate_mode: 评估模式，"start_from_beginning"从头开始，"give_answers"使用已有答案
         
     返回:
         评估结果和准确率
     """
     # 准备文件路径
-    result_file = f"results/{dataset_name}_{model_name}_result.json"
-    accuracy_file = f"results/{dataset_name}_{model_name}_result_accuracy.json"
+    result_file = f"results/{user_id}/{business_id}_result.json"
+    accuracy_file = f"results/{user_id}/{business_id}_score.json"
     
     # 加载数据集
     dataset = TextMCQ(dataset_name)
     dataset.choices, dataset.answers = shuffle_and_convert(dataset)
+    background = dataset.background
+    dataset.max_score = dataset.dataset_info['max_score']
     language = dataset.language
-    
-    # 初始化或加载结果
-    results = []
 
-    if evaluate_mode == "start_from_beginning" or not os.path.exists(result_file):
-        # 从头开始评测：初始化所有题目的结果为"Neglected"
-        results = [{"id": i, "response": "Neglected"} for i in range(question_limitation)]
-        # 写入初始结果文件
-        write_json_file(results, result_file)
-    else:
-        # 从断点处评测：加载现有结果
-        existing_results = read_json_file(result_file)
-        if existing_results:
-            results = existing_results
-        else:
-            # 如果文件存在但无法读取，则从头开始
-            results = [{"id": i, "response": "Neglected"} for i in range(question_limitation)]
-            write_json_file(results, result_file)
-    
-    # 准备参数列表
+    if question_limitation >= len(dataset.questions):
+        question_limitation = len(dataset.questions)
+
+
+    # 初始化结果
+    existing_results = read_json_file(result_file)
+    if not existing_results:
+        existing_results = [{"id": i, "response": "Neglected"} for i in range(question_limitation)]
+        write_json_file(existing_results, result_file)
+                
     args_list = []
     for i in range(question_limitation):
-        # 检查是否需要处理此题
-        if evaluate_mode == "resume_from_checkpoint" and results[i]["response"] != "Neglected":
-            print(f"跳过已完成的问题 {i+1}")
+        if existing_results[i]['response'] != "Neglected":
             continue
-            
-        question = dataset.questions[i]
-        question_type = dataset.question_type_list[i]
-        choices = dataset.choices[i]
+        question = dataset.questions[i] if dataset.questions is not None else None
+        question_type = dataset.question_type_list[i] if dataset.question_type_list is not None else None
+        choices = dataset.choices[i] if dataset.choices is not None else None
+        case = dataset.case[i] if dataset.case is not None else None
         answer = ""
         hint = ""
         if dataset.answers is not None:
             answer = dataset.answers[i]
         if dataset.hints is not None:
             hint = dataset.hints[i]
-        
-        args_list.append((i, dataset_name, question, question_type, choices, answer, hint, language, model_name))
+        args_list.append((i, dataset_name, background, case, question, question_type, choices, answer, hint, language, model_name, model_key, api_base))
     
-    # 如果没有需要处理的问题，直接计算准确率
-    if not args_list:
-        print("没有需要处理的问题，直接计算准确率")
-        return calculate_accuracy(results, dataset.answers, accuracy_file)
-    
-    # 并行执行
     with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = {executor.submit(process_question, args): args[0] for args in args_list}
-        
-        # 使用tqdm显示进度
-        for future in tqdm(concurrent.futures.as_completed(futures), total=len(futures), desc="处理文本问题"):
+        for future in tqdm(concurrent.futures.as_completed(futures), total=len(futures), desc=f"评测中"):
             idx, response, answer = future.result()
-            
-            # 更新结果
-            results[idx]["response"] = response
-            
-            # 每完成一题就更新结果文件
-            write_json_file(results, result_file)
-            
-            #print(f"问题 {idx+1}: 回答: {response}")
-    
-    # 计算准确率并写入文件
-    return calculate_accuracy(results, dataset.answers, accuracy_file)
+            existing_results[idx]["response"] = response
+            write_json_file(existing_results, result_file)
+        
+    return calculate_valid_ratio_and_score(result_file, dataset.answers, accuracy_file, max_score=dataset.max_score, business_id=business_id)
 
-def calculate_accuracy(results, answers, accuracy_file, question_type_list=None, neglected_threshold=0.05):
+def calculate_valid_ratio_and_score(result_file, answers, accuracy_file, question_type_list=None, neglected_threshold=0.05, max_score=1, business_id=""):
     """
     计算准确率并写入文件
     
@@ -333,9 +378,11 @@ def calculate_accuracy(results, answers, accuracy_file, question_type_list=None,
         结果列表和准确率
     """
     # 计算Neglected题目的比例
+    results = read_json_file(result_file)
     total_questions = len(results)
     neglected_count = sum(1 for result in results if result["response"] == "Neglected")
     neglected_ratio = neglected_count / total_questions if total_questions > 0 else 0
+    valid_ratio = 1 - neglected_ratio
     
     # 检查Neglected题目比例是否超过阈值
     if neglected_ratio > neglected_threshold:
@@ -395,26 +442,23 @@ def calculate_accuracy(results, answers, accuracy_file, question_type_list=None,
                     correct_count += 1
     
     # 计算准确率（基于有效题目数量）
-    accuracy = correct_count / valid_count if valid_count > 0 else 0
-    print(f"准确率: {accuracy:.4f} ({correct_count}/{valid_count})")
-    print(f"有效题目: {valid_count}/{total_questions} (Neglected: {neglected_count}题, {neglected_ratio:.2%})")
+    raw_score = correct_count / valid_count * 100 if valid_count > 0 else 0
+    score = raw_score / max_score * 100
     
     # 写入准确率文件
     accuracy_data = {
-        "accuracy": accuracy,
-        "correct_count": correct_count,
-        "valid_count": valid_count,
-        "total_count": total_questions,
-        "neglected_count": neglected_count,
-        "neglected_ratio": neglected_ratio
+        "business_id": business_id,
+        "raw_score": raw_score,
+        "score": score,
+        "valid_ratio": valid_ratio
     }
     write_json_file(accuracy_data, accuracy_file)
     
-    return results, accuracy
+    return valid_ratio, score
 
 if __name__ == "__main__":
     # 评估MMLU数据集
-    results, accuracy = evaluate_mcq("MMLU", "gpt-3.5-turbo", evaluate_mode="resume_from_checkpoint")
+    results, accuracy = evaluate_mcq_automatic("MMLU", "gpt-3.5-turbo")
     print(accuracy)
             
             

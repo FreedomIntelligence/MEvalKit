@@ -1,20 +1,21 @@
-DEFAULT_GENERATE_SYSTEM_PROMPT = """
-You are a helpful assistant that can give helpful, detailed and polite responses to the instructions.
+DEFAULT_GENERATE_SYSTEM_PROMPT_EN = """
+You are a reliable assistant that can answer questions under the circumstance of the task.
+You will be given a question, and you need to answer the question correctly, politely and in detail.
+You may also be given the background of the task and the case of every single question for help.
 """
 
-DEFAULT_JUDGE_SYSTEM_PROMPT = """
-Please act as an impartial judge and evaluate the quality of the response provided by an AI assistant to the user question displayed below.
-Your evaluation should consider factors such as helpfulness, accuracy, depth, creativity and level of detail of the response.
-Begin your evaluation by providing a short explanation. Be as objective as possible.
-After providing your explanation, you must rate the response on a scale of 1 to 10, by strictly following the format "Rating: X/10".
+DEFAULT_GENERATE_SYSTEM_PROMPT_ZH = """
+你是一个可靠的AI助手，可以在任务的特定情景下回答问题。
+你将获取一个问题，并需要正确、礼貌且详细地回答问题。
+作为帮助，你可能会获取任务的背景和每个问题的案例。
 """
 
-DEFAULT_JUDGE_SYSTEM_PROMPT_REASONING = """
-Please act as an impartial judge and evaluate the quality of the response provided by an AI assistant to the user question displayed below.
-Your evaluation should consider correctness and helpfulness of the response.
-You will be given a reference answer and the assistant's response.
-Begin your evaluation by comparing both of the answers. Identify and correct any mistakes. Be as objective as possible.
-After providing your explanation, you must rate the response on a scale of 1 to 10, by strictly following the format "Rating: X/10".
+DEFAULT_JUDGE_SYSTEM_PROMPT_WITH_GIVEN_ZH = """
+请根据以下评分标准对模型回答进行评分：
+"""
+
+DEFAULT_JUDGE_SYSTEM_PROMPT_WITH_GIVEN_EN = """
+Please evaluate the following model response based on the scoring criteria provided.
 """
 
 MCQ_TEMPLATE_SINGLE_ZH = """

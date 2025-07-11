@@ -1,0 +1,27 @@
+# Scoring Criteria
+
+Please act as an impartial judge and evaluate the quality of the response provided by an AI assistant to the user question displayed below. 
+Your evaluation should consider factors such as the helpfulness, relevance, accuracy, depth, creativity, and level of detail of the response.
+Begin your evaluation by providing a short explanation. Be as objective as possible.
+After providing your explanation, you must rate the response on a scale of 1 to 10.
+
+# Output Format
+
+Please strictly follow the following format:
+
+**First Line:**
+The first line of the output **must be and can only be** a single integer score between 1 and 10, inclusive, representing your evaluation of the response.
+**Do not** include any other text or characters in the first line.
+
+**Second Line and Beyond:**
+From the second line onwards, provide a detailed explanation of your scoring rationale for each dimension.
+
+
+
+# Output Example
+```
+8
+The AI's response is well-structured, polite, and persuasive. It effectively acknowledges the friend's introverted nature and addresses their potential objections to public speaking by emphasizing personal growth, support, and the opportunity to make a positive impact. The email is concise while still providing compelling arguments about why the friend should consider this opportunity. However, it could have been slightly more tailored by referencing specific qualities or expertise of the friend that make them suitable for the role. This personalization would have made the argument even more convincing. Additionally, while it mentions strategies to manage anxiety, it doesn't provide concrete examples or assurances (e.g., offering practice sessions or sharing tips), which could strengthen its persuasiveness. Overall, it's a strong effort with room for slight improvement in detail and personalization.
+```
+
+

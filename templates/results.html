@@ -12,25 +12,32 @@
         <!-- 导航栏 -->
         <nav class="navbar navbar-expand-lg navbar-light bg-light mb-4">
             <div class="container-fluid">
-                <a class="navbar-brand" href="/">LLM评测平台</a>
+                <a class="navbar-brand" href="/">MEvalKit</a>
                 <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
                     <span class="navbar-toggler-icon"></span>
                 </button>
                 <div class="collapse navbar-collapse" id="navbarNav">
-                    <ul class="navbar-nav">
+                    <ul class="navbar-nav me-auto">
                         <li class="nav-item">
                             <a class="nav-link" href="/">总榜</a>
                         </li>
                         <li class="nav-item">
                             <a class="nav-link" href="/specific-leaderboard">分榜</a>
                         </li>
-                        <li class="nav-item">
-                            <a class="nav-link active" href="/results">评测任务</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link" href="/create-task">创建任务</a>
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle active" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                评测管理
+                            </a>
+                            <ul class="dropdown-menu" aria-labelledby="navbarDropdown">
+                                <li><a class="dropdown-item" href="/new-evaluation">开始新评测</a></li>
+                                <li><a class="dropdown-item" href="/view-evaluations">查看评测</a></li>
+                            </ul>
                         </li>
                     </ul>
+                    <!-- 用户信息 -->
+                    <div class="user-info" style="background-color: #f8f9fa; padding: 0.5rem 1rem; border-radius: 0.25rem;">
+                        用户：test
+                    </div>
                 </div>
             </div>
         </nav>
@@ -38,7 +45,7 @@
         <!-- 按钮更新 -->
         <div class="d-flex align-items-center justify-content-between mb-4">
             <h1>评测任务列表</h1>
-            <a href="/create-task" class="btn btn-primary">创建新任务</a>
+            <a href="/new-evaluation" class="btn btn-primary">开始新评测</a>
         </div>
         
         {% if current_task_id and current_task_id in active_tasks %}
@@ -62,6 +69,19 @@
                                  aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">0%</div>
                         </div>
                         <p id="taskCompletion">已完成: 0 / 0 题</p>
+                    </div>
+                </div>
+                
+                <!-- 错误信息显示区域 -->
+                <div id="taskErrorContainer" class="mt-3" style="display: none;">
+                    <div class="alert alert-danger">
+                        <h6 class="alert-heading">任务执行失败</h6>
+                        <p id="taskErrorMessage" class="mb-2"></p>
+                        <hr>
+                        <p class="mb-0">
+                            <strong>详细错误信息:</strong>
+                        </p>
+                        <pre id="taskErrorDetails" class="mt-2 mb-0" style="white-space: pre-wrap; font-size: 0.9rem;"></pre>
                     </div>
                 </div>
             </div>
@@ -106,7 +126,7 @@
                 <a href="{{ request.path }}{% if request.query_string %}?{{ request.query_string.decode() }}{% endif %}" class="btn btn-sm btn-light">刷新</a>
             </div>
             <div class="card-body">
-                {% if results %}
+                {% if tasks %}
                 <div class="table-responsive">
                     <table class="table table-hover">
                         <thead>
@@ -120,38 +140,59 @@
                             </tr>
                         </thead>
                         <tbody>
-                            {% for result in results %}
+                            {% for task in tasks %}
                             <tr>
-                                <td>{{ result.dataset }}</td>
-                                <td>{{ result.model }}</td>
+                                <td>{{ task.dataset }}</td>
+                                <td>{{ task.model }}</td>
                                 <td>
+                                    {% if task.status == 'failed' %}
                                     <div class="progress" style="height: 20px;">
-                                        <div class="progress-bar {% if result.is_completed %}bg-success{% else %}bg-warning{% endif %}" 
-                                             role="progressbar" 
-                                             style="width: {% if result.completion_rate is defined %}{{ result.completion_rate * 100 }}{% else %}0{% endif %}%;" 
-                                             aria-valuenow="{% if result.completion_rate is defined %}{{ result.completion_rate * 100 }}{% else %}0{% endif %}" 
-                                             aria-valuemin="0" 
-                                             aria-valuemax="100">
-                                            {% if result.completion_rate is defined %}{{ "%.1f"|format(result.completion_rate * 100) }}{% else %}0{% endif %}%
+                                        <div class="progress-bar bg-danger" role="progressbar" style="width: 100%;" aria-valuenow="100" aria-valuemin="0" aria-valuemax="100">
+                                            失败
                                         </div>
                                     </div>
-                                    <small class="text-muted">{{ result.completed_questions }} / {{ result.total_questions }}</small>
+                                    <small class="text-muted">任务执行失败</small>
+                                    {% else %}
+                                    <div class="progress" style="height: 20px;">
+                                        <div class="progress-bar {% if task.status == 'completed' %}bg-success{% elif task.status == 'incomplete' %}bg-warning{% else %}bg-primary{% endif %}" 
+                                             role="progressbar" 
+                                             style="width: {% if task.completed_questions and task.total_questions %}{{ (task.completed_questions / task.total_questions * 100) | round(1) }}{% else %}0{% endif %}%;" 
+                                             aria-valuenow="{% if task.completed_questions and task.total_questions %}{{ (task.completed_questions / task.total_questions * 100) | round(1) }}{% else %}0{% endif %}" 
+                                             aria-valuemin="0" 
+                                             aria-valuemax="100">
+                                            {% if task.completed_questions and task.total_questions %}{{ "%.1f"|format(task.completed_questions / task.total_questions * 100) }}{% else %}0{% endif %}%
+                                        </div>
+                                    </div>
+                                    <small class="text-muted">{{ task.completed_questions or 0 }} / {{ task.total_questions or 0 }}</small>
+                                    {% endif %}
                                 </td>
                                 <td>
-                                    {% if result.accuracy is defined and result.is_completed %}
-                                    <span class="badge bg-primary">{{ "%.2f"|format(result.accuracy * 100) }}%</span>
+                                    {% if task.status == 'completed' and task.score is defined %}
+                                    <span class="badge bg-primary">{{ "%.2f"|format(task.score) }}</span>
+                                    {% elif task.status == 'failed' %}
+                                    <span class="badge bg-danger">失败</span>
                                     {% else %}
                                     <span class="badge bg-secondary">未完成</span>
                                     {% endif %}
                                 </td>
                                 <td>
-                                    {% if result.is_completed %}
+                                    {% if task.status == 'completed' %}
                                     <span class="badge bg-success">已完成</span>
-                                    {% else %}
+                                    {% elif task.status == 'incomplete' %}
                                     <span class="badge bg-warning text-dark">未完成</span>
+                                    {% elif task.status == 'failed' %}
+                                    <span class="badge bg-danger">失败</span>
+                                    {% elif task.status == 'running' %}
+                                    <span class="badge bg-primary">运行中</span>
+                                    {% elif task.status == 'pending' %}
+                                    <span class="badge bg-secondary">准备中</span>
+                                    {% elif task.status == 'evaluation_complete' %}
+                                    <span class="badge bg-info">评测完成</span>
+                                    {% else %}
+                                    <span class="badge bg-secondary">未知</span>
                                     {% endif %}
                                 </td>
-                                <td>{{ result.timestamp|timestamp_to_date }}</td>
+                                <td>{{ task.created_at|timestamp_to_date }}</td>
                             </tr>
                             {% endfor %}
                         </tbody>
@@ -183,6 +224,9 @@
                 const taskStatus = document.getElementById('taskStatus');
                 const taskProgress = document.getElementById('taskProgress');
                 const taskCompletion = document.getElementById('taskCompletion');
+                const taskErrorContainer = document.getElementById('taskErrorContainer');
+                const taskErrorMessage = document.getElementById('taskErrorMessage');
+                const taskErrorDetails = document.getElementById('taskErrorDetails');
                 
                 // 定期检查任务状态
                 function checkTaskStatus() {
@@ -191,6 +235,21 @@
                         .then(data => {
                             // 更新状态
                             taskStatus.textContent = data.status;
+                            
+                            // 处理错误状态
+                            if (data.status === 'failed') {
+                                // 隐藏进度条
+                                taskProgress.parentElement.style.display = 'none';
+                                taskCompletion.style.display = 'none';
+                                
+                                // 显示错误信息
+                                if (taskErrorContainer && data.error_message) {
+                                    taskErrorContainer.style.display = 'block';
+                                    taskErrorMessage.textContent = data.error_message;
+                                    taskErrorDetails.textContent = data.error_details || '无详细错误信息';
+                                }
+                                return; // 不再继续检查
+                            }
                             
                             // 如果有完成率信息，更新进度条
                             if (data.completion_rate !== undefined) {

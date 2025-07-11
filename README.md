@@ -1,139 +1,313 @@
-**使用一句命令即可完成对已有的或自定义的评测集的评测！**
+# MEvalKit - 多模态大语言模型评测平台
 
-## 目录
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
+[![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)](https://www.python.org/)
+[![Flask](https://img.shields.io/badge/Flask-2.0+-green.svg)](https://flask.palletsprojects.com/)
+[![Docker](https://img.shields.io/badge/Docker-Ready-blue.svg)](https://www.docker.com/)
 
-- [项目特色](#项目特色)
-- [版本](#版本)
+**MEvalKit** 是一个功能强大的多模态大语言模型评测平台，支持纯文本、多模态和LLMJudge型评测集，提供Web界面和命令行两种使用方式，让模型评测变得简单高效。
+
+## 🌟 项目特色
+
+- **🎯 一键评测**：仅用一句命令即可完成对已有或自定义评测集的评测
+- **🔧 多种模型支持**：通过标准OpenAI接口支持GPT系列、Qwen系列等多种纯文本及多模态模型
+- **📊 丰富评测集**：支持MMLU、MMStar、MT-Bench、CMB等多种评测集
+- **🌐 Web界面**：提供直观的Web管理界面，支持任务创建、进度监控、结果查看
+- **🐳 Docker部署**：提供完整的Docker部署方案，快速搭建评测环境
+- **🔄 断点续评**：支持评测任务的中断和恢复，避免重复计算
+- **📈 排行榜系统**：自动生成模型性能排行榜，便于比较分析
+
+## 📋 目录
+
+- [快速开始](#快速开始)
 - [支持的评测集](#支持的评测集)
-- [评测方法](#评测方法)
-    - [结果生成](#结果生成)
-    - [从头评估](#从头评估)
-    - [断点评估](#断点评估)
-- [使用](#使用)
-    - [安装](#安装)
-    - [命令](#命令)
-- [评测集集成](#评测集集成)
+- [使用方式](#使用方式)
+  - [命令行使用](#命令行使用)
+  - [Web界面使用](#web界面使用)
+- [部署指南](#部署指南)
+  - [Docker快速部署](#docker快速部署)
+  - [手动安装部署](#手动安装部署)
+- [评测模式](#评测模式)
+- [API文档](#api文档)
+- [自定义评测集](#自定义评测集)
+- [项目结构](#项目结构)
+- [贡献指南](#贡献指南)
+- [许可证](#许可证)
 
-## 项目特色
+## 🚀 快速开始
 
-- **运行简便**：仅用一句命令即可完成评测。
-- **多种模型**：通过标准OpenAI接口即可支持GPT系列、Qwen系列等多种纯文本及多模态模型。
-- **多种评测集**：支持多种评测集，如纯文本评测集MMLU、多模态评测集MMStar、LLMJudge型评测集
-MT-Bench等。
-
-## 版本
-
-- **[2025-04-23]** v1.0初始版本，支持MMLU、MMStar、MT-Bench、CMB等评测集
-
-## 支持的评测集
-| 评测集名称       | 评测集类型         | 评测集路径           |
-| --------------- | ----------------- | ----------------- |
-| MMLU            | 纯文本评测集       | https://huggingface.co/datasets/cais/mmlu |
-| GPQA            | 纯文本评测集       | https://github.com/idavidrein/gpqa                                         |
-| CMB             | 纯文本评测集       | https://github.com/FreedomIntelligence/CMB                                         |
-| MMStar          | 多模态评测集       | https://huggingface.co/datasets/Lin-Chen/MMStar |
-| MT-Bench        | LLMJudge型评测集   | https://github.com/lm-sys/FastChat/tree/main/fastchat/llm_judge                                         |
-
-## 评测模式与结果生成
-
-分为两种模式：[从头评估](#从头评估)和[断点评估](#断点评估)
-
-### 结果生成
-
-选择“从头评估”以后，会生成一个“评测集名称_模型名称_result.json”文件，记录每一个问题的模型response。
-
-在一轮评估中，如果95%的题目都已经生成了结果，则会生成一个“评测集名称_模型名称_score_result.json”文件，记录本轮评估最后的分数。
-
-### 从头评估
-
-从头开始一轮评测。会重置评测的结果文件，将所有题目的模型response都设为null。
-
-### 断点评估
-
-进行一次断点评估时，会读取result.json文件中每一个问题是否已经生成response。若生成，则跳过该问题的评估。
-
-## 使用
-
-### 安装
+### 使用Docker（推荐）
 
 ```bash
-git clone git@github.com:FreedomIntelligence/MEvalKit.git
+# 克隆项目
+git clone https://github.com/FreedomIntelligence/MEvalKit.git
 cd MEvalKit
-pip install -e .
-pip install -r requirements.txt
+
+# 一键部署
+./deploy.sh
+
+# 访问Web界面
+# http://localhost:5000
 ```
 
-### 命令
+### 手动安装
 
 ```bash
-python run.py --dataset MMLU --model gpt-3.5-turbo --judgment_model None --workers 64 --evaluate_mode start
+# 克隆项目
+git clone https://github.com/FreedomIntelligence/MEvalKit.git
+cd MEvalKit
+
+# 安装依赖
+pip install -r requirements.txt
+
+# 配置环境变量
+cp env.example .env
+# 编辑.env文件，设置API密钥等
+
+# 启动Web服务
+python app.py
+
+# 或使用命令行评测
+python run.py --dataset MMLU --model_name gpt-4o --evaluation_mode automatic
 ```
---dataset：在dataset_info.json中已经配置好的评测集名称。
 
---model：标准OpenAI接口支持的模型。
+## 📊 支持的评测集
 
---workers：并行处理的工作线程数量。
+| 评测集名称 | 类型 | 描述 | 数据源 |
+|-----------|------|------|--------|
+| **MMLU** | 纯文本 | 大规模多任务语言理解评测集 | [HuggingFace](https://huggingface.co/datasets/cais/mmlu) |
+| **GPQA** | 纯文本 | 研究生水平物理问答评测集 | [GitHub](https://github.com/idavidrein/gpqa) |
+| **CMB** | 纯文本 | 中文医学基准评测集 | [GitHub](https://github.com/FreedomIntelligence/CMB) |
+| **MMStar** | 多模态 | 多模态科学问答评测集 | [HuggingFace](https://huggingface.co/datasets/Lin-Chen/MMStar) |
+| **MT-Bench** | LLMJudge | 多轮对话评测集 | [GitHub](https://github.com/lm-sys/FastChat/tree/main/fastchat/llm_judge) |
 
---evaluate_mode：评测模式，可选值为start（从头开始）和resume（断点继续）。
+## 💻 使用方式
 
---judgment_model：LLMJudge评测集中用于评判的模型。如果不是LLMJudge评测集，则指定为None。
+### 命令行使用
 
-## 评测集集成
+#### 自动模式（推荐）
 
-所有评测集的配置文件都在dataset_info文件夹中。如果您要集成您自定义的评测集，请在不同类型评测集的json文件中进行配置（纯文本评测集放在text_dataset.json中，多模态评测集放在image_dataset.json中，LLMJudge型评测集放在llmjudge_dataset.json中）。
+```bash
+# 基本用法
+python run.py --dataset MMLU --model_name gpt-4o --evaluation_mode automatic
 
-以下的各部分（choices, answer, hint, image等），如果不被您的评测集所包含的话，请用{}进行配置。
+# 完整参数示例
+python run.py \
+  --evaluation_mode automatic \
+  --dataset MMLU \
+  --model_name gpt-4o \
+  --api_base "https://api.openai.com/v1" \
+  --model_key "your-api-key" \
+  --question_limitation 100 \
+  --user_id "test_user"
+```
 
-如果各部分的子内容无需指定的话，用""表示。
+#### 手动模式
+
+```bash
+# 使用预生成的响应文件进行评测
+python run.py \
+  --evaluation_mode manual \
+  --dataset MMLU \
+  --model_name gpt-4o \
+  --response_url "https://example.com/responses.json" \
+  --question_limitation 100
+```
+
+### Web界面使用
+
+1. **访问主页**：打开浏览器访问 `http://localhost:5000`
+2. **创建评测任务**：点击"开始新评测"，填写评测参数
+3. **监控进度**：在任务详情页面查看实时进度
+4. **查看结果**：评测完成后查看详细结果和排行榜
+
+## 🐳 部署指南
+
+### Docker快速部署
+
+#### 一键部署（推荐）
+
+```bash
+# 首次部署（构建镜像并启动服务）
+./deploy.sh
+
+# 只构建镜像，不启动服务
+./deploy.sh --build-only
+
+# 只启动服务，不构建镜像
+./deploy.sh --start-only
+
+# 重新构建镜像并启动服务
+./deploy.sh --rebuild
+```
+
+#### 手动Docker部署
+
+```bash
+# 构建镜像
+docker build -t mevalkit:latest .
+
+# 配置环境变量
+cp env.example .env
+# 编辑.env文件
+
+# 启动服务
+docker-compose up -d
+
+# 查看日志
+docker-compose logs -f
+```
+
+### 手动安装部署
+
+```bash
+# 1. 安装Python依赖
+pip install -r requirements.txt
+
+# 2. 配置环境变量
+cp env.example .env
+# 编辑.env文件，设置必要的API密钥
+
+# 3. 启动Web服务
+python app.py
+
+# 4. 访问应用
+# Web界面: http://localhost:5000
+# API文档: http://localhost:5000/apidocs/
+```
+
+## 🔄 评测模式
+
+### 自动模式（Automatic）
+
+- **特点**：实时调用模型API进行评测
+- **适用场景**：有模型API访问权限的情况
+- **优势**：实时性好，支持大规模评测
+- **参数**：需要提供API密钥和接口地址
+
+### 手动模式（Manual）
+
+- **特点**：使用预生成的模型响应文件进行评测
+- **适用场景**：模型响应已预先生成或API访问受限
+- **优势**：成本低，可重复使用响应数据
+- **参数**：需要提供响应数据URL
+
+## 📚 API文档
+
+### 主要接口
+
+| 接口 | 方法 | 描述 |
+|------|------|------|
+| `/` | GET | 主页（总排行榜） |
+| `/new-evaluation` | GET | 创建评测任务页面 |
+| `/run-evaluation` | POST | 运行评测任务 |
+| `/task-status/<task_id>` | GET | 获取任务状态 |
+| `/task-detail/<task_id>` | GET | 查看任务详情 |
+| `/results` | GET | 查看所有结果 |
+
+### Swagger文档
+
+访问 `http://localhost:5000/apidocs/` 查看完整的API文档。
+
+## 🔧 自定义评测集
+
+### 配置文件结构
+
+评测集配置位于 `dataset_info/` 目录下：
+
+- `text_dataset.json` - 纯文本评测集配置
+- `image_dataset.json` - 多模态评测集配置  
+- `LLMJudge_dataset.json` - LLMJudge型评测集配置
+
+### 配置示例
 
 ```json
-"数据集名称": {
-        "language": "评测集使用的语言",
-        "question": {
-            "loading_way": "评测集问题部分的加载方式，目前支持huggingface、csv、json",
-            "path": "评测集问题部分的加载路径",
-            "subset_name": "如果是huggingface加载方式，还需指定子集",
-            "split_name": "如果是huggingface加载方式，还需指定划分",
-            "key": "数据集选项部分的表头名称",
-            "question_type_key": "如果是混合单选、多选的选择题型的评测集，还需指定评测集问题类型的表头名称"
-        },
-        "choices": {
-            "loading_way": "评测集选项部分的加载方式，目前支持huggingface、csv、json",
-            "path": "评测集选项部分的加载路径",
-            "subset_name": "如果是huggingface加载方式，还需指定子集",
-            "split_name": "如果是huggingface加载方式，还需指定划分",
-            "key": "评测集选项部分的表头名称。如果你的选项分散在多列中，请用list的形式指定，如['Option1', 'Option2', 'Option3', 'Option4']",
-            "sub_key": "如果选项是以'选项名称'：'选项内容'的形式呈现的，请用list的形式指定所有'选项名称'"
-        },
-        "answer": {
-            "loading_way": "评测集答案部分的加载方式，目前支持huggingface、csv、json",
-            "path": "评测集答案部分的加载路径",
-            "subset_name": "如果是huggingface加载方式，还需指定子集",
-            "split_name": "如果是huggingface加载方式，还需指定划分",
-            "key": "评测集答案部分的表头名称",
-            "answer_type": "评测集答案的类型，'choice'表示答案是以选项（即ABCD）的形式呈现的，'content'表示答案是以选项内容的形式呈现的"
-        },
-        "hint": {
-            "loading_way": "评测集提示部分的加载方式，目前支持huggingface、csv、json",
-            "path": "评测集提示部分的加载路径",
-            "subset_name": "如果是huggingface加载方式，还需指定子集",
-            "split_name": "如果是huggingface加载方式，还需指定划分",
-            "key": "评测集提示部分的表头名称"
-        },
-        "image": {
-            "loading_way": "评测集图片部分的加载方式，目前支持huggingface、csv、json",
-            "path": "评测集图片部分的加载路径",
-            "subset_name": "如果是huggingface加载方式，还需指定子集",
-            "split_name": "如果是huggingface加载方式，还需指定划分",
-            "key": "评测集图片部分的表头名称"
-        }
+{
+  "MyDataset": {
+    "language": "zh",
+    "question": {
+      "loading_way": "huggingface",
+      "path": "your-dataset-path",
+      "subset_name": "default",
+      "split_name": "test",
+      "key": "question"
+    },
+    "choices": {
+      "loading_way": "huggingface",
+      "path": "your-dataset-path",
+      "key": ["A", "B", "C", "D"]
+    },
+    "answer": {
+      "loading_way": "huggingface",
+      "path": "your-dataset-path",
+      "key": "answer",
+      "answer_type": "choice"
     }
+  }
+}
 ```
 
-## 协议
+## 📁 项目结构
 
-本仓库的代码依照[Apache License 2.0](LICENSE)协议开源。
+```
+MEvalKit/
+├── app.py                 # Flask Web应用主文件
+├── run.py                 # 命令行评测入口
+├── requirements.txt       # Python依赖
+├── Dockerfile            # Docker镜像配置
+├── docker-compose.yml    # Docker Compose配置
+├── deploy.sh             # 一键部署脚本
+├── evaluation/           # 评测核心模块
+│   ├── TextMCQ_eval.py   # 文本多选题评测
+│   ├── ImageMCQ_eval.py  # 图像多选题评测
+│   └── LLMJudge_eval.py  # LLMJudge评测
+├── src/                  # 工具模块
+│   └── utils/           # 工具函数
+├── dataset_info/        # 数据集配置
+│   ├── text_dataset.json
+│   ├── image_dataset.json
+│   └── LLMJudge_dataset.json
+├── templates/           # Web模板
+├── results/            # 评测结果存储
+├── data/              # 数据集缓存
+└── logs/              # 日志文件
+```
 
-## 致谢
+## 🤝 贡献指南
 
-本项目受益于[VLMEvalKit](https://github.com/open-compass/VLMEvalKit)与[LLaMA-Factory](https://github.com/hiyouga/LLaMA-Factory),感谢以上作者的付出！
+我们欢迎社区贡献！请遵循以下步骤：
+
+1. Fork 本仓库
+2. 创建特性分支 (`git checkout -b feature/AmazingFeature`)
+3. 提交更改 (`git commit -m 'Add some AmazingFeature'`)
+4. 推送到分支 (`git push origin feature/AmazingFeature`)
+5. 开启 Pull Request
+
+### 贡献类型
+
+- 🐛 Bug修复
+- ✨ 新功能开发
+- 📚 文档改进
+- 🧪 测试用例
+- 🔧 性能优化
+
+## 📄 许可证
+
+本项目采用 [Apache License 2.0](LICENSE) 许可证。
+
+## 🙏 致谢
+
+本项目受益于以下开源项目：
+
+- [VLMEvalKit](https://github.com/open-compass/VLMEvalKit) - 多模态评测框架
+- [LLaMA-Factory](https://github.com/hiyouga/LLaMA-Factory) - 大语言模型训练框架
+
+## 📞 联系我们
+
+- 项目主页：https://github.com/FreedomIntelligence/MEvalKit
+- 问题反馈：https://github.com/FreedomIntelligence/MEvalKit/issues
+- 邮箱：1481345518@qq.com
+
+---
+
+**MEvalKit** - 让模型评测变得简单高效！ 🚀
