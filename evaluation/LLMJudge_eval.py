@@ -184,7 +184,10 @@ def process_single_question_automatic(args):
                 else:
                     question_prompt = f"案例：{case_text}\n\n问题：{question}"
 
-            # 生成回答
+            # 生成回答 
+            # TODO 这里可能有些问题，就MT-Bench来说，第二轮问题是要基于第一轮问题已回答的上下文进行回答的,这里我要是没有理解错的话，是把两轮问题分割开进行了（第二轮回答时没有第一轮的上下文）
+            # 改法是可以把chat_history带到for循环外，或者就是把MultiturnTextAPI的构建放在本循环外（现在相当于每轮都构建了一个，所以他们chat_history是独立的）
+            # 记得手动的也有同样的问题，也改一下（或者把这里这个一致的逻辑给抽象出来一个方法，让手动和自动复用）
             generate_chat = MultiturnTextAPI(model_name, system_prompt, question_prompt, temperature, f"GenerateAgent_{idx}", model_key, api_base)
             model_response = generate_chat.generate_response()
             generate_responses.append(model_response)
@@ -257,9 +260,17 @@ def evaluate_llmjudge_automatic(
     if not existing_results:
         existing_results = [{"id": i, "reference_answer": "None", "generate_response": "Neglected", "judge_response": "Neglected", "score": -1} for i in range(question_limitation)]
         write_json_file(existing_results, result_file)
+    else:
+        # 如果existing_results存在但长度不足，需要扩展到question_limitation长度
+        current_length = len(existing_results)
+        if current_length < question_limitation:
+            for i in range(current_length, question_limitation):
+                existing_results.append({"id": i, "reference_answer": "None", "generate_response": "Neglected", "judge_response": "Neglected", "score": -1})
+            write_json_file(existing_results, result_file)
 
     args_list = []
     for i in range(question_limitation):
+        # 如果结果已经存在且分数大于0，则跳过
         if existing_results[i]['score'] >= 0 and existing_results[i]['score'] <= max_score:
             continue
         result = existing_results[i]
@@ -337,6 +348,13 @@ def evaluate_llmjudge_manual(
     if not existing_results:
         existing_results = [{"id": i, "reference_answer": "None", "generate_response": "Neglected", "judge_response": "Neglected", "score": -1} for i in range(len(question_list))]
         write_json_file(existing_results, result_file)
+    else:
+        # 如果existing_results存在但长度不足，需要扩展到question_list长度
+        current_length = len(existing_results)
+        if current_length < len(question_list):
+            for i in range(current_length, len(question_list)):
+                existing_results.append({"id": i, "reference_answer": "None", "generate_response": "Neglected", "judge_response": "Neglected", "score": -1})
+            write_json_file(existing_results, result_file)
 
     if question_limitation >= len(question_list):
         question_limitation = len(question_list)

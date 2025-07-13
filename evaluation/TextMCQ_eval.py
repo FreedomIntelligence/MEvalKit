@@ -337,6 +337,21 @@ def evaluate_mcq_automatic(
     if not existing_results:
         existing_results = [{"id": i, "response": "Neglected"} for i in range(question_limitation)]
         write_json_file(existing_results, result_file)
+    else:
+        # 如果existing_results存在但长度不足，需要扩展到question_limitation长度
+        current_length = len(existing_results)
+        if current_length < question_limitation:
+            for i in range(current_length, question_limitation):
+                existing_results.append({"id": i, "response": "Neglected"})
+            write_json_file(existing_results, result_file)
+        
+        # 处理existing_results中可能存在的None情况，统一处理成Neglected
+        for i in range(question_limitation):
+            if existing_results[i] is None:
+                existing_results[i] = {"id": i, "response": "Neglected"}
+            elif existing_results[i].get('response') is None:
+                existing_results[i]['response'] = "Neglected"
+        write_json_file(existing_results, result_file)
                 
     args_list = []
     for i in range(question_limitation):

@@ -331,6 +331,7 @@ def evaluate_imagemcq_automatic(
 
     # 初始化结果
     existing_results = read_json_file(result_file)
+    # TODO 这里也有同样的问题，参照TextMCQ_eval.py 里进行修改吧
     if not existing_results:
         existing_results = [{"id": i, "response": "Neglected"} for i in range(question_limitation)]
         write_json_file(existing_results, result_file)
