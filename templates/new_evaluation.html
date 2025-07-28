@@ -124,15 +124,15 @@
                     </div>
                     
                     <div class="mb-3">
-                        <label for="manual-api-base" class="form-label">API接口路径（可选）</label>
-                        <input type="text" class="form-control" id="manual-api-base" name="api_base" placeholder="API接口地址，如 http://localhost:8000/v1">
-                        <div class="form-text">如果需要调用API进行评测，请输入API接口地址</div>
+                        <label for="manual-api-base" class="form-label">API接口路径（手动模式不需要）</label>
+                        <input type="text" class="form-control" id="manual-api-base" name="api_base" placeholder="手动模式不需要API接口" disabled>
+                        <div class="form-text text-muted">手动模式不需要API接口，此字段已禁用</div>
                     </div>
                     
                     <div class="mb-3">
-                        <label for="manual-model-key" class="form-label">模型密钥（可选）</label>
-                        <input type="password" class="form-control" id="manual-model-key" name="model_key" placeholder="API密钥或访问令牌">
-                        <div class="form-text">如果需要调用API，请输入访问密钥</div>
+                        <label for="manual-model-key" class="form-label">模型密钥（手动模式不需要）</label>
+                        <input type="password" class="form-control" id="manual-model-key" name="model_key" placeholder="手动模式不需要模型密钥" disabled>
+                        <div class="form-text text-muted">手动模式不需要模型密钥，此字段已禁用</div>
                     </div>
                     
                     <div class="mb-3">
@@ -288,14 +288,13 @@
             } else if (evaluationMode === 'manual') {
                 // 手动模式使用手动模式的字段值
                 const manualModelName = document.getElementById('manual-model-name');
-                const manualApiBase = document.getElementById('manual-api-base');
-                const manualModelKey = document.getElementById('manual-model-key');
                 const responseUrl = document.getElementById('response-url');
                 const manualQuestionLimitation = document.getElementById('manual-question-limitation');
                 
                 formData.set('model_name', manualModelName.value);
-                formData.set('api_base', manualApiBase.value.trim());
-                formData.set('model_key', manualModelKey.value.trim());
+                // 手动模式不需要API相关参数，设置为空字符串
+                formData.set('api_base', '');
+                formData.set('model_key', '');
                 formData.set('response_url', responseUrl.value.trim());
                 formData.set('question_limitation', manualQuestionLimitation.value.trim());
             }

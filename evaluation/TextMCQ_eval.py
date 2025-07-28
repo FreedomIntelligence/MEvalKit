@@ -1,14 +1,30 @@
+"""
+文本多选题评测模块
+
+该模块提供了对文本多选题数据集进行评测的功能，支持自动模式和手动模式。
+主要功能包括：
+- 文本多选题的自动评测（实时调用API）
+- 文本多选题的手动评测（使用预生成响应）
+- 答案提取和验证
+- 结果计算和存储
+
+作者: MEvalKit Team
+版本: 1.0.0
+"""
+
 import sys
 import os
 import json
 import requests
 from pathlib import Path
 from openai import BadRequestError, AuthenticationError
+from typing import Optional
 
 project_root = Path(__file__).resolve().parent.parent
 sys.path.append(str(project_root))
 # sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+# 导入相关模块
 from src.dataset.Text.TextMCQ import *
 from src.api.text_api import *
 from src.utils.MCQ_constants import *
@@ -20,16 +36,95 @@ from typing import List, Tuple, Dict, Any, Literal
 from dotenv import load_dotenv
 import re
 
+# 导入数据库模块
+from src.database.repository import evaluation_repo, task_repo
+from secure_database import SecureDatabase
+
+# 通过环境变量自动认证
+load_dotenv()
+username = os.environ.get("DB_USER")
+password = os.environ.get("DB_PASS")
+db = SecureDatabase("mevalkit_secure.db")
+if not db.authenticate(username, password):
+    print("认证失败，程序退出。")
+    exit(1)
+
+def save_to_secure_database(
+    business_id, user_id, dataset_name, model_name, evaluation_mode, eval_type,
+    result_data=None, response_data=None, is_completed=False,
+    score=None, raw_score=None, valid_ratio=None, total_questions=None, valid_questions=None
+):
+    """
+    保存评测结果到加密数据库
+    
+    该函数将评测结果加密后存储到SQLite数据库中，支持upsert操作。
+    
+    参数:
+        business_id: 业务ID，用于标识评测任务
+        user_id: 用户ID
+        dataset_name: 数据集名称
+        model_name: 模型名称
+        evaluation_mode: 评测模式（automatic/manual）
+        eval_type: 评测类型
+        result_data: 评测结果数据
+        response_data: 模型响应数据
+        is_completed: 是否完成评测
+        score: 最终得分
+        raw_score: 原始得分
+        valid_ratio: 有效问题比例
+        total_questions: 总问题数
+        valid_questions: 有效问题数
+        
+    返回:
+        bool: 保存是否成功
+    """
+    try:
+        encrypted_result = db.encrypt_data(json.dumps(result_data)) if result_data else None
+        encrypted_response = db.encrypt_data(json.dumps(response_data)) if response_data else None
+        import sqlite3
+        conn = sqlite3.connect("mevalkit_secure.db")
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO evaluation_results_secure (
+                business_id, user_id, dataset_name, model_name, evaluation_mode, eval_type,
+                result_data_encrypted, response_data_encrypted, is_completed,
+                score, raw_score, valid_ratio, total_questions, valid_questions
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(business_id, user_id) DO UPDATE SET
+                result_data_encrypted=excluded.result_data_encrypted,
+                response_data_encrypted=excluded.response_data_encrypted,
+                is_completed=excluded.is_completed,
+                score=excluded.score,
+                raw_score=excluded.raw_score,
+                valid_ratio=excluded.valid_ratio,
+                total_questions=excluded.total_questions,
+                valid_questions=excluded.valid_questions
+        """, (
+            business_id, user_id, dataset_name, model_name, evaluation_mode, eval_type,
+            encrypted_result, encrypted_response, int(is_completed),
+            score, raw_score, valid_ratio, total_questions, valid_questions
+        ))
+        conn.commit()
+        conn.close()
+        print(f"[加密数据库] business_id={business_id} 写入成功 is_completed={is_completed} score={score}")
+        return True
+    except Exception as e:
+        print(f"[加密数据库] business_id={business_id} 写入失败: {str(e)}")
+        return False
+
 def extract_answer(response: str, dataset_name: str):
     """
     提取单选题答案
+    
+    从模型的响应文本中提取单选题的答案选项（如A、B、C、D）。
+    支持多种答案格式的正则表达式匹配。
     
     参数:
         response: 模型的响应文本
         dataset_name: 数据集名称，用于确定答案格式
         
     返回:
-        提取的答案选项（如A、B、C、D），如果未找到则返回None
+        str: 提取的答案选项（如A、B、C、D），如果未找到则返回None
     """
     if response == "Neglected":
         return response
@@ -44,12 +139,15 @@ def extract_multi_answer(response: str, dataset_name: str) -> List[str]:
     """
     提取多选题答案
     
+    从模型的响应文本中提取多选题的答案选项列表。
+    支持多种答案格式，包括逗号分隔、空格分隔等。
+    
     参数:
         response: 模型的响应文本
         dataset_name: 数据集名称，用于确定答案格式
         
     返回:
-        提取的答案选项列表（如['A', 'B', 'C']），如果未找到则返回None
+        List[str]: 提取的答案选项列表（如['A', 'B', 'C']），如果未找到则返回None
     """
     if response == "Neglected":
         return response
@@ -79,7 +177,7 @@ def extract_multi_answer(response: str, dataset_name: str) -> List[str]:
     
     return None
 
-def shuffle_and_convert(dataset: TextMCQ):
+def shuffle_and_convert(dataset: TextMCQ, shuffle: bool = True):
     """
     随机打乱选项顺序，并找到打乱后答案的索引
     
@@ -97,6 +195,8 @@ def shuffle_and_convert(dataset: TextMCQ):
     # 如果没有选项，直接返回
     if choices is None:
         return None, answers
+    
+
     
     # 如果有选项但没有答案，只打乱选项
     if choices is not None and answers is None:
@@ -121,6 +221,10 @@ def shuffle_and_convert(dataset: TextMCQ):
             new_choices.append(choice_list)
             new_answer.append(answer)
             continue
+        elif isinstance(choice_list, str):
+            new_choices.append(choice_list)
+            new_answer.append(answer)
+            continue
         else:
             # 单选题处理：先找到正确答案对应的选项内容
             if answer != '' and answer_type == 'choice':
@@ -136,7 +240,8 @@ def shuffle_and_convert(dataset: TextMCQ):
                 answer = choice_list[number_index]
                     
             # 打乱选项顺序
-            random.shuffle(choice_list)
+            if shuffle:
+                random.shuffle(choice_list)
             # 找到打乱后正确答案的新位置
             answer_index = chr(choice_list.index(answer) + 65)
             new_choices.append(choice_list)
@@ -216,7 +321,7 @@ def process_question(args):
 
 def write_json_file(data, file_path):
     """
-    将数据写入JSON文件
+    将数据写入JSON文件（保留兼容性）
     
     参数:
         data: 要写入的数据
@@ -241,13 +346,13 @@ def write_json_file(data, file_path):
 
 def read_json_file(file_path):
     """
-    从JSON文件读取数据
+    从JSON文件读取数据（保留兼容性）
     
     参数:
         file_path: 文件路径
         
     返回:
-        读取的数据，如果文件不存在或读取失败则返回None
+        读取的数据
     """
     try:
         if not os.path.exists(file_path):
@@ -256,6 +361,60 @@ def read_json_file(file_path):
             return json.load(f)
     except Exception as e:
         print(f"读取JSON文件时出错: {str(e)}")
+        return None
+
+def save_to_database(business_id: str, user_id: str, dataset_name: str, 
+                    model_name: str, evaluation_mode: str, eval_type: str,
+                    result_data: List[Dict[str, Any]] = None, 
+                    response_data: List[Dict[str, Any]] = None,
+                    is_completed: bool = False) -> bool:
+    """保存评测结果到数据库"""
+    try:
+        result_info = {
+            'business_id': business_id,
+            'user_id': user_id,
+            'dataset_name': dataset_name,
+            'model_name': model_name,
+            'evaluation_mode': evaluation_mode,
+            'eval_type': eval_type,
+            'result_data': result_data,
+            'response_data': response_data,
+            'is_completed': is_completed
+        }
+        
+        # 如果评测已完成，计算统计信息
+        if is_completed and result_data:
+            total_questions = len(result_data)
+            valid_questions = sum(1 for item in result_data if item.get("response") != "Neglected")
+            valid_ratio = valid_questions / total_questions if total_questions > 0 else 0
+            
+            if valid_ratio >= 0.95:
+                # 计算准确率
+                correct_count = 0
+                for i, result in enumerate(result_data):
+                    if result.get("response") != "Neglected":
+                        # 这里需要根据具体的数据集来计算准确率
+                        # 暂时使用简单的统计
+                        pass
+                
+                result_info.update({
+                    'total_questions': total_questions,
+                    'valid_questions': valid_questions,
+                    'valid_ratio': valid_ratio
+                })
+        
+        return evaluation_repo.save_evaluation_result(result_info) is not None
+    except Exception as e:
+        print(f"保存到数据库失败: {str(e)}")
+        return False
+
+def get_from_database(business_id: str, user_id: str) -> Optional[Dict[str, Any]]:
+    """从数据库获取评测结果"""
+    try:
+        result = evaluation_repo.get_evaluation_result(business_id, user_id)
+        return result.to_dict() if result else None
+    except Exception as e:
+        print(f"从数据库获取结果失败: {str(e)}")
         return None
 
 def evaluate_mcq_manual(
@@ -267,14 +426,12 @@ def evaluate_mcq_manual(
         response_url: str = "",
 ):
     dataset = TextMCQ(dataset_name)
+    dataset.choices, dataset.answers = shuffle_and_convert(dataset, shuffle=False)
     dataset.max_score = dataset.dataset_info['max_score']
     language = dataset.language
 
     if question_limitation >= len(dataset.questions):
         question_limitation = len(dataset.questions)
-
-    result_file = f"results/{user_id}/{business_id}_manual_result.json"
-    score_file = f"results/{user_id}/{business_id}_manual_score.json"
 
     try:
         response = requests.get(response_url, timeout=60)
@@ -282,6 +439,9 @@ def evaluate_mcq_manual(
     except Exception as e:
         print(f"获取响应时出错: {str(e)}")
         return None
+
+    if len(response) < question_limitation:
+        question_limitation = len(response)
 
     result = []
     
@@ -291,6 +451,12 @@ def evaluate_mcq_manual(
             "response": response[i]["response"]
         })
 
+    # 保存到数据库
+    save_to_secure_database(business_id, user_id, dataset_name, model_name, "manual", "textmcq", result, None, True)
+    
+    # 同时保存到文件（兼容性）
+    result_file = f"results/{user_id}/{business_id}_manual_result.json"
+    score_file = f"results/{user_id}/{business_id}_manual_score.json"
     write_json_file(result, result_file)
 
     return calculate_valid_ratio_and_score(result_file, dataset.answers, score_file, max_score=dataset.max_score, business_id=business_id)
@@ -317,13 +483,9 @@ def evaluate_mcq_automatic(
     返回:
         评估结果和准确率
     """
-    # 准备文件路径
-    result_file = f"results/{user_id}/{business_id}_result.json"
-    accuracy_file = f"results/{user_id}/{business_id}_score.json"
-    
     # 加载数据集
     dataset = TextMCQ(dataset_name)
-    dataset.choices, dataset.answers = shuffle_and_convert(dataset)
+    dataset.choices, dataset.answers = shuffle_and_convert(dataset, shuffle=True)
     background = dataset.background
     dataset.max_score = dataset.dataset_info['max_score']
     language = dataset.language
@@ -331,20 +493,35 @@ def evaluate_mcq_automatic(
     if question_limitation >= len(dataset.questions):
         question_limitation = len(dataset.questions)
 
-
-    # 初始化结果
+    # 尝试从数据库获取现有结果
+    existing_db_result = get_from_database(business_id, user_id)
+    
+    if existing_db_result and existing_db_result.get('result_data'):
+        existing_results = existing_db_result['result_data']
+    else:
+        # 从文件读取（兼容性）
+        result_file = f"results/{user_id}/{business_id}_result.json"
+        response_file = f"results/{user_id}/{business_id}_response.json"
     existing_results = read_json_file(result_file)
+    
     if not existing_results:
         existing_results = [{"id": i, "response": "Neglected"} for i in range(question_limitation)]
+        # 保存到数据库
+        save_to_secure_database(business_id, user_id, dataset_name, model_name, "automatic", "textmcq", existing_results, existing_results, False)
+        # 同时保存到文件（兼容性）
         write_json_file(existing_results, result_file)
+        write_json_file(existing_results, response_file)
     else:
         # 如果existing_results存在但长度不足，需要扩展到question_limitation长度
         current_length = len(existing_results)
         if current_length < question_limitation:
             for i in range(current_length, question_limitation):
                 existing_results.append({"id": i, "response": "Neglected"})
+            # 保存到数据库
+            save_to_secure_database(business_id, user_id, dataset_name, model_name, "automatic", "textmcq", existing_results, existing_results, False)
+            # 同时保存到文件（兼容性）
             write_json_file(existing_results, result_file)
-        
+            write_json_file(existing_results, response_file)
         # 处理existing_results中可能存在的None情况，统一处理成Neglected
         for i in range(question_limitation):
             if existing_results[i] is None:
@@ -352,7 +529,8 @@ def evaluate_mcq_automatic(
             elif existing_results[i].get('response') is None:
                 existing_results[i]['response'] = "Neglected"
         write_json_file(existing_results, result_file)
-                
+        write_json_file(existing_results, response_file)
+
     args_list = []
     for i in range(question_limitation):
         if existing_results[i]['response'] != "Neglected":
@@ -374,9 +552,51 @@ def evaluate_mcq_automatic(
         for future in tqdm(concurrent.futures.as_completed(futures), total=len(futures), desc=f"评测中"):
             idx, response, answer = future.result()
             existing_results[idx]["response"] = response
+            # 保存到数据库
+            save_to_secure_database(business_id, user_id, dataset_name, model_name, "automatic", "textmcq", existing_results, existing_results, False)
+            # 同时保存到文件（兼容性）
             write_json_file(existing_results, result_file)
+            write_json_file(existing_results, response_file)
         
-    return calculate_valid_ratio_and_score(result_file, dataset.answers, accuracy_file, max_score=dataset.max_score, business_id=business_id)
+    # 生成评分摘要（兼容性）
+    accuracy_file = f"results/{user_id}/{business_id}_score.json"
+    valid_ratio, score = calculate_valid_ratio_and_score(result_file, dataset.answers, accuracy_file, max_score=dataset.max_score, business_id=business_id)
+    
+    # 读取计算出的分数并更新数据库
+    try:
+        with open(accuracy_file, 'r', encoding='utf-8') as f:
+            score_data = json.load(f)
+        
+        # 计算统计信息
+        total_questions = len(existing_results)
+        valid_questions = sum(1 for item in existing_results if item.get("response") != "Neglected")
+        
+        # 准备完整的最终结果数据
+        final_result = {
+            'total_questions': total_questions,
+            'valid_questions': valid_questions,
+            'valid_ratio': score_data.get('valid_ratio', 0.0),
+            'raw_score': score_data.get('raw_score', 0.0),
+            'score': score_data.get('score', 0.0),
+            'result_data': existing_results,
+            'response_data': existing_results
+        }
+        
+        # 完成评测，保存最终结果（包含分数）
+        save_to_secure_database(business_id, user_id, dataset_name, model_name, "automatic", "textmcq", existing_results, existing_results, True,
+                                score=final_result['score'], raw_score=final_result['raw_score'], valid_ratio=final_result['valid_ratio'],
+                                total_questions=final_result['total_questions'], valid_questions=final_result['valid_questions'])
+        
+        # 使用complete_evaluation方法确保分数被正确保存
+        from src.database.repository import evaluation_repo
+        evaluation_repo.complete_evaluation(business_id, user_id, final_result)
+        
+    except Exception as e:
+        print(f"更新数据库分数失败: {str(e)}")
+        # 即使分数更新失败，也要保存基本结果
+        save_to_secure_database(business_id, user_id, dataset_name, model_name, "automatic", "textmcq", existing_results, existing_results, True)
+    
+    return valid_ratio, score
 
 def calculate_valid_ratio_and_score(result_file, answers, accuracy_file, question_type_list=None, neglected_threshold=0.05, max_score=1, business_id=""):
     """
@@ -394,6 +614,8 @@ def calculate_valid_ratio_and_score(result_file, answers, accuracy_file, questio
     """
     # 计算Neglected题目的比例
     results = read_json_file(result_file)
+    print(results)
+    print(answers)
     total_questions = len(results)
     neglected_count = sum(1 for result in results if result["response"] == "Neglected")
     neglected_ratio = neglected_count / total_questions if total_questions > 0 else 0
@@ -473,7 +695,12 @@ def calculate_valid_ratio_and_score(result_file, answers, accuracy_file, questio
 
 if __name__ == "__main__":
     # 评估MMLU数据集
-    results, accuracy = evaluate_mcq_automatic("MMLU", "gpt-3.5-turbo")
-    print(accuracy)
-            
+
+    # response_url = "http://47.110.252.218:1995/admin-api/infra/file/31/get/evaluation/answer/20250717/mmlu_manualresponsetest_2_response_1752738413234.json"
+    # response = requests.get(response_url, timeout=60)
+    # response = response.json()
+    # print(response)
+    dataset = TextMCQ("GPQA")
+    dataset.choices, dataset.answers = shuffle_and_convert(dataset, shuffle=False)
+    print(dataset.answers)
             

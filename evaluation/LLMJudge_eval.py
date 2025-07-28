@@ -19,8 +19,23 @@ from src.utils.model_and_dataset import *
 from typing import List, Literal, Tuple, Dict, Any, Optional, Union
 from dotenv import load_dotenv
 
+# 导入数据库模块
+from src.database.repository import evaluation_repo, task_repo
+from secure_database import SecureDatabase
+import getpass
+import json
+
+# 通过环境变量自动认证
+load_dotenv()
+username = os.environ.get("DB_USER")
+password = os.environ.get("DB_PASS")
+db = SecureDatabase("mevalkit_secure.db")
+if not db.authenticate(username, password):
+    print("认证失败，程序退出。")
+    exit(1)
+
 def write_json_file(data, file_path):
-    """将数据写入JSON文件"""
+    """将数据写入JSON文件（保留兼容性）"""
     try:
         # 确保目录存在
         directory = os.path.dirname(file_path)
@@ -36,7 +51,7 @@ def write_json_file(data, file_path):
         return False
 
 def read_json_file(file_path):
-    """从JSON文件读取数据"""
+    """从JSON文件读取数据（保留兼容性）"""
     try:
         if not os.path.exists(file_path):
             return None
@@ -44,6 +59,55 @@ def read_json_file(file_path):
             return json.load(f)
     except Exception as e:
         print(f"读取JSON文件时出错: {str(e)}")
+        return None
+
+# 支持upsert和分数字段的加密数据库写入函数
+def save_to_secure_database(
+    business_id, user_id, dataset_name, model_name, evaluation_mode, eval_type,
+    result_data=None, response_data=None, is_completed=False,
+    score=None, raw_score=None, valid_ratio=None, total_questions=None, valid_questions=None
+):
+    try:
+        encrypted_result = db.encrypt_data(json.dumps(result_data)) if result_data else None
+        encrypted_response = db.encrypt_data(json.dumps(response_data)) if response_data else None
+        import sqlite3
+        conn = sqlite3.connect("mevalkit_secure.db")
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO evaluation_results_secure (
+                business_id, user_id, dataset_name, model_name, evaluation_mode, eval_type,
+                result_data_encrypted, response_data_encrypted, is_completed,
+                score, raw_score, valid_ratio, total_questions, valid_questions
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(business_id, user_id) DO UPDATE SET
+                result_data_encrypted=excluded.result_data_encrypted,
+                response_data_encrypted=excluded.response_data_encrypted,
+                is_completed=excluded.is_completed,
+                score=excluded.score,
+                raw_score=excluded.raw_score,
+                valid_ratio=excluded.valid_ratio,
+                total_questions=excluded.total_questions,
+                valid_questions=excluded.valid_questions
+        """, (
+            business_id, user_id, dataset_name, model_name, evaluation_mode, eval_type,
+            encrypted_result, encrypted_response, int(is_completed),
+            score, raw_score, valid_ratio, total_questions, valid_questions
+        ))
+        conn.commit()
+        conn.close()
+        print(f"[加密数据库] business_id={business_id} 写入成功 is_completed={is_completed} score={score}")
+        return True
+    except Exception as e:
+        print(f"[加密数据库] business_id={business_id} 写入失败: {str(e)}")
+        return False
+
+def get_from_database(business_id: str, user_id: str) -> Optional[Dict[str, Any]]:
+    """从数据库获取评测结果"""
+    try:
+        result = evaluation_repo.get_evaluation_result(business_id, user_id)
+        return result.to_dict() if result else None
+    except Exception as e:
+        print(f"从数据库获取结果失败: {str(e)}")
         return None
 
 def extract_scores(evaluate_response: str) -> Optional[Union[int, float]]:
@@ -131,7 +195,7 @@ def process_single_question_automatic(args):
     返回:
         (idx, result): 问题索引和处理结果
     """
-    idx, language, background, case, questions, reference_answer, result, model_name, model_key, api_base, judge_prompt, judge_prompt_with_reference, temperature = args
+    idx, language, background, case, questions, reference_answer, result, resp, model_name, model_key, api_base, judge_prompt, judge_prompt_with_reference, temperature = args
     evaluate_model = "gpt-4o"
     
     background_prompt_zh = f"任务背景：{background}" if background is not None and language == "zh" else f"任务背景：无"
@@ -163,13 +227,15 @@ def process_single_question_automatic(args):
         result["generate_response"] = "A"
         result["evaluate_response"] = "A"
         result["score"] = 1
+        resp["response"] = "A"
         time.sleep(1)
         return idx, result
     else:
         evaluate_responses = []
         generate_responses = []
         scores = []
-
+        generate_chat = MultiturnTextAPI(model_name, system_prompt, "", temperature, f"GenerateAgent_{idx}", model_key, api_base)
+        evaluate_chat = MultiturnTextAPI(evaluate_model, system_judge_prompt, "", 0.7, f"JudgeAgent_{idx}", model_key, api_base)
         for i, question in enumerate(questions):
             # 构建问题提示语
             if case is None:
@@ -183,30 +249,30 @@ def process_single_question_automatic(args):
                     question_prompt = f"Case: {case_text}\n\nQuestion: {question}"
                 else:
                     question_prompt = f"案例：{case_text}\n\n问题：{question}"
-
-            # 生成回答 
-            # TODO 这里可能有些问题，就MT-Bench来说，第二轮问题是要基于第一轮问题已回答的上下文进行回答的,这里我要是没有理解错的话，是把两轮问题分割开进行了（第二轮回答时没有第一轮的上下文）
-            # 改法是可以把chat_history带到for循环外，或者就是把MultiturnTextAPI的构建放在本循环外（现在相当于每轮都构建了一个，所以他们chat_history是独立的）
-            # 记得手动的也有同样的问题，也改一下（或者把这里这个一致的逻辑给抽象出来一个方法，让手动和自动复用）
-            generate_chat = MultiturnTextAPI(model_name, system_prompt, question_prompt, temperature, f"GenerateAgent_{idx}", model_key, api_base)
+            generate_chat.user_prompt = question_prompt
             model_response = generate_chat.generate_response()
             generate_responses.append(model_response)
+
 
             # 构建评估提示语
             if reference_answer is not None:
                 if language == "en":
                     evaluate_prompt = f"{question_prompt}\n\nGenerate Response: {model_response}\n\nReference Answer: {reference_answer}"
-                    evaluate_chat = MultiturnTextAPI(evaluate_model, system_judge_prompt_with_reference, evaluate_prompt, 0.7, f"JudgeAgent_{idx}", model_key, api_base)
+                    evaluate_chat.system_prompt = system_judge_prompt_with_reference
+                    evaluate_chat.user_prompt = evaluate_prompt
                 else:
                     evaluate_prompt = f"{question_prompt}\n\n模型回答：{model_response}\n\n参考答案：{reference_answer}"
-                    evaluate_chat = MultiturnTextAPI(evaluate_model, system_judge_prompt_with_reference, evaluate_prompt, 0.7, f"JudgeAgent_{idx}", model_key, api_base)
+                    evaluate_chat.system_prompt = system_judge_prompt_with_reference
+                    evaluate_chat.user_prompt = evaluate_prompt
             else:
                 if language == "en":
                     evaluate_prompt = f"{question_prompt}\n\nGenerate Response: {model_response}"
-                    evaluate_chat = MultiturnTextAPI(evaluate_model, system_judge_prompt, evaluate_prompt, 0.7, f"JudgeAgent_{idx}", model_key, api_base)
+                    evaluate_chat.system_prompt = system_judge_prompt
+                    evaluate_chat.user_prompt = evaluate_prompt
                 else:
                     evaluate_prompt = f"{question_prompt}\n\n模型回答：{model_response}"
-                    evaluate_chat = MultiturnTextAPI(evaluate_model, system_judge_prompt, evaluate_prompt, 0.7, f"JudgeAgent_{idx}", model_key, api_base)
+                    evaluate_chat.system_prompt = system_judge_prompt
+                    evaluate_chat.user_prompt = evaluate_prompt
 
             # 获取评估结果
             evaluate_response = evaluate_chat.generate_response()
@@ -218,7 +284,8 @@ def process_single_question_automatic(args):
         result["generate_response"] = generate_responses
         result["evaluate_response"] = evaluate_responses
         result["score"] = sum(scores) / len(scores)
-        return idx, result
+        resp["response"] = generate_responses
+        return idx, result, resp
 
 
 def evaluate_llmjudge_automatic(
@@ -253,43 +320,100 @@ def evaluate_llmjudge_automatic(
     if not case_list:
         case_list = [None] * len(question_list)
 
-    result_file = f"results/{user_id}/{business_id}_result.json"
-    accuracy_file = f"results/{user_id}/{business_id}_score.json"
+    # 尝试从数据库获取现有结果
+    existing_db_result = get_from_database(business_id, user_id)
     
+    if existing_db_result and existing_db_result.get('result_data'):
+        existing_results = existing_db_result['result_data']
+        response = existing_db_result.get('response_data', [])
+    else:
+        # 从文件读取（兼容性）
+        result_file = f"results/{user_id}/{business_id}_result.json"
+    response_file = f"results/{user_id}/{business_id}_response.json"
     existing_results = read_json_file(result_file)
+    response = read_json_file(response_file)
+    
     if not existing_results:
         existing_results = [{"id": i, "reference_answer": "None", "generate_response": "Neglected", "judge_response": "Neglected", "score": -1} for i in range(question_limitation)]
+        response = [{"id": i, "response": "Neglected"} for i in range(question_limitation)]
+        # 保存到数据库
+        save_to_secure_database(business_id, user_id, dataset_name, model_name, "automatic", "llmjudge", existing_results, response, False)
+        # 同时保存到文件（兼容性）
         write_json_file(existing_results, result_file)
+        write_json_file(response, response_file)
     else:
-        # 如果existing_results存在但长度不足，需要扩展到question_limitation长度
         current_length = len(existing_results)
         if current_length < question_limitation:
             for i in range(current_length, question_limitation):
                 existing_results.append({"id": i, "reference_answer": "None", "generate_response": "Neglected", "judge_response": "Neglected", "score": -1})
+                response.append({"id": i, "response": "Neglected"})
             write_json_file(existing_results, result_file)
+            write_json_file(response, response_file)
 
     args_list = []
     for i in range(question_limitation):
         # 如果结果已经存在且分数大于0，则跳过
+        #print(existing_results[i])
         if existing_results[i]['score'] >= 0 and existing_results[i]['score'] <= max_score:
             continue
         result = existing_results[i]
-        cases = case_list[i] if i < len(case_list) else None
-        questions = question_list[i] if i < len(question_list) else None
-        reference_answer = reference_answer_list[i] if i < len(reference_answer_list) else None
+        resp = response[i]
+        cases = case_list[i] if (case_list is not None and i < len(case_list)) else None
+        questions = question_list[i] if (question_list is not None and i < len(question_list)) else None
+        reference_answer = reference_answer_list[i] if (reference_answer_list is not None and i < len(reference_answer_list)) else None
         temperature = 0 if reference_answer is not None else 0.7
-        args_list.append((i, language, background, cases, questions, reference_answer, result, model_name, model_key, api_base, judge_prompt, judge_prompt_with_reference, temperature))
+        args_list.append((i, language, background, cases, questions, reference_answer, result, resp, model_name, model_key, api_base, judge_prompt, judge_prompt_with_reference, temperature))
     
     with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = {executor.submit(process_single_question_automatic, args): args[0] for args in args_list}
         for future in tqdm(concurrent.futures.as_completed(futures), total=len(futures), desc=f"评测中"):
-            idx, result = future.result()
+            idx, result, resp = future.result()
             existing_results[idx] = result
+            response[idx] = resp
+            # 保存到数据库
+            save_to_secure_database(business_id, user_id, dataset_name, model_name, "automatic", "llmjudge", existing_results, response, False)
+            # 同时保存到文件（兼容性）
             write_json_file(existing_results, result_file)
+            write_json_file(response, response_file)
     
-    final_results = read_json_file(result_file)
-    generate_score_summary(final_results, accuracy_file, max_score=max_score)
-    return final_results
+    # 生成评分摘要（兼容性）
+    accuracy_file = f"results/{user_id}/{business_id}_score.json"
+    generate_score_summary(existing_results, accuracy_file, max_score=max_score)
+    
+    # 读取计算出的分数并更新数据库
+    try:
+        with open(accuracy_file, 'r', encoding='utf-8') as f:
+            score_data = json.load(f)
+        
+        # 计算统计信息
+        total_questions = len(existing_results)
+        valid_questions = sum(1 for item in existing_results if item.get("score", -1) >= 0 and item.get("score", -1) <= max_score)
+        valid_ratio = valid_questions / total_questions if total_questions > 0 else 0
+        
+        # 准备完整的最终结果数据
+        final_result = {
+            'total_questions': total_questions,
+            'valid_questions': valid_questions,
+            'valid_ratio': valid_ratio,
+            'raw_score': score_data.get('raw_score', 0.0),
+            'score': score_data.get('score', 0.0),
+            'result_data': existing_results,
+            'response_data': response
+        }
+        
+        # 完成评测，保存最终结果（包含分数）
+        save_to_secure_database(business_id, user_id, dataset_name, model_name, "automatic", "llmjudge", existing_results, response, True, score=final_result['score'], raw_score=final_result['raw_score'], valid_ratio=final_result['valid_ratio'], total_questions=final_result['total_questions'], valid_questions=final_result['valid_questions'])
+        
+        # 使用complete_evaluation方法确保分数被正确保存
+        from src.database.repository import evaluation_repo
+        evaluation_repo.complete_evaluation(business_id, user_id, final_result)
+        
+    except Exception as e:
+        print(f"更新数据库分数失败: {str(e)}")
+        # 即使分数更新失败，也要保存基本结果
+        save_to_secure_database(business_id, user_id, dataset_name, model_name, "automatic", "llmjudge", existing_results, response, True)
+    
+    return existing_results
         
 
     
@@ -300,8 +424,6 @@ def evaluate_llmjudge_manual(
         business_id: str = "",
         question_limitation: int = 100,
         response_url: str = "",
-        model_key: str = "",
-        api_base: str = "",
         max_workers: int = 64,
         ):
     """
@@ -338,48 +460,75 @@ def evaluate_llmjudge_manual(
     try:
         response = requests.get(response_url, timeout=60)
         response = response.json()
+        print(response)
     except Exception as e:
         print(f"获取响应时出错: {str(e)}")
         return None
 
-    result_file = f"results/{user_id}/{business_id}_manual_result.json"
-    score_file = f"results/{user_id}/{business_id}_manual_score.json"
-    existing_results = read_json_file(result_file)
+    if len(response) < question_limitation:
+        question_limitation = len(response)
+    
+    if question_limitation >= len(question_list):
+        question_limitation = len(question_list)
+
+    # 尝试从数据库获取现有结果
+    existing_db_result = get_from_database(business_id, user_id)
+    
+    if existing_db_result and existing_db_result.get('result_data'):
+        existing_results = existing_db_result['result_data']
+    else:
+        # 从文件读取（兼容性）
+        result_file = f"results/{user_id}/{business_id}_manual_result.json"
+        existing_results = read_json_file(result_file)
+    
     if not existing_results:
-        existing_results = [{"id": i, "reference_answer": "None", "generate_response": "Neglected", "judge_response": "Neglected", "score": -1} for i in range(len(question_list))]
+        existing_results = [{"id": i, "reference_answer": "None", "generate_response": "Neglected", "judge_response": "Neglected", "score": -1} for i in range(question_limitation)]
+        # 保存到数据库
+        save_to_secure_database(business_id, user_id, dataset_name, model_name, "manual", "llmjudge", existing_results, None, False)
+        # 同时保存到文件（兼容性）
         write_json_file(existing_results, result_file)
     else:
         # 如果existing_results存在但长度不足，需要扩展到question_list长度
         current_length = len(existing_results)
-        if current_length < len(question_list):
-            for i in range(current_length, len(question_list)):
+        if current_length < question_limitation:
+            for i in range(current_length, question_limitation):
                 existing_results.append({"id": i, "reference_answer": "None", "generate_response": "Neglected", "judge_response": "Neglected", "score": -1})
+            # 保存到数据库
+            save_to_secure_database(business_id, user_id, dataset_name, model_name, "manual", "llmjudge", existing_results, None, False)
+            # 同时保存到文件（兼容性）
             write_json_file(existing_results, result_file)
 
-    if question_limitation >= len(question_list):
-        question_limitation = len(question_list)
+
         
     args_list = []
-    for i in range(len(question_list)):
+    for i in range(question_limitation):
         if existing_results[i]['score'] >= 0 and existing_results[i]['score'] <= max_score:
             continue
         result = existing_results[i]
-        cases = case_list[i]
-        questions = question_list[i]
-        reference_answer = reference_answer_list[i]
+        cases = case_list[i] if (case_list is not None and i < len(case_list)) else None
+        questions = question_list[i] if (question_list is not None and i < len(question_list)) else None
+        reference_answer = reference_answer_list[i] if (reference_answer_list is not None and i < len(reference_answer_list)) else None
         model_responses = response[i]['response']
-        args_list.append((i, language, background, cases, questions, model_responses, reference_answer, result, model_name, judge_prompt, judge_prompt_with_reference, model_key, api_base))
+        load_dotenv()
+        args_list.append((i, language, background, cases, questions, model_responses, reference_answer, result, model_name, judge_prompt, judge_prompt_with_reference, os.getenv("MODEL_KEY"), os.getenv("API_BASE")))
 
-        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
-            futures = {executor.submit(process_single_question_manual, args): args[0] for args in args_list}
-            for future in tqdm(concurrent.futures.as_completed(futures), total=len(futures), desc=f"评测中"):
-                idx, result = future.result()
-                existing_results[idx] = result
-                write_json_file(existing_results, result_file)
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = {executor.submit(process_single_question_manual, args): args[0] for args in args_list}
+        for future in tqdm(concurrent.futures.as_completed(futures), total=len(futures), desc=f"评测中"):
+            idx, result = future.result()
+            existing_results[idx] = result
+            # 保存到数据库
+            save_to_secure_database(business_id, user_id, dataset_name, model_name, "manual", "llmjudge", existing_results, None, False)
+            # 同时保存到文件（兼容性）
+            write_json_file(existing_results, result_file)
         
-        final_results = read_json_file(result_file)
-        generate_score_summary(final_results, score_file, max_score=max_score)
-    return final_results
+    # 完成评测，保存最终结果
+    save_to_secure_database(business_id, user_id, dataset_name, model_name, "manual", "llmjudge", existing_results, None, True)
+    
+    # 生成评分摘要（兼容性）
+    score_file = f"results/{user_id}/{business_id}_manual_score.json"
+    generate_score_summary(existing_results, score_file, max_score=max_score)
+    return existing_results
 
 def process_single_question_manual(args):
     """
@@ -413,7 +562,7 @@ def process_single_question_manual(args):
     evaluate_responses = []
     generate_responses = []
     scores = []
-
+    evaluate_chat = MultiturnTextAPI("gpt-4o", system_judge_prompt, "", 0.7, f"JudgeAgent_{idx}", model_key, api_base)
     for i, question in enumerate(questions):
         if cases is None:
             if language == "en":
@@ -433,13 +582,16 @@ def process_single_question_manual(args):
                 evaluate_prompt = f"{question_prompt}\n\nGenerate Response: {model_response}\n\nReference Answer: {reference_answer}"
             else:
                 evaluate_prompt = f"{question_prompt}\n\n模型回答：{model_response}\n\n参考答案：{reference_answer}"
-            evaluate_chat = MultiturnTextAPI("gpt-4o", system_judge_prompt_with_reference, evaluate_prompt, 0.7, f"JudgeAgent_{idx}", model_key, api_base)
+            evaluate_chat.system_prompt = system_judge_prompt_with_reference
+            evaluate_chat.user_prompt = evaluate_prompt
+
         else:
             if language == "en":
                 evaluate_prompt = f"{question_prompt}\n\nGenerate Response: {model_response}"
             else:
                 evaluate_prompt = f"{question_prompt}\n\n模型回答：{model_response}"
-            evaluate_chat = MultiturnTextAPI("gpt-4o", system_judge_prompt, evaluate_prompt, 0.7, f"JudgeAgent_{idx}", model_key, api_base)
+            evaluate_chat.system_prompt = system_judge_prompt
+            evaluate_chat.user_prompt = evaluate_prompt
 
         evaluate_response = evaluate_chat.generate_response()
         score = extract_scores(evaluate_response)
@@ -506,5 +658,9 @@ def generate_score_summary(all_results, score_file, completion_threshold=0.95, m
 
 
 
-
-
+if __name__ == "__main__":
+    response_url = "http://47.110.252.218:1995/admin-api/infra/file/31/get/evaluation/answer/20250718/case_1752823934098.json"
+    response = requests.get(response_url, timeout=60)
+    response = response.json()
+    print(response)
+    

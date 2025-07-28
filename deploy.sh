@@ -1,37 +1,75 @@
 #!/bin/bash
 
+"""
+MEvalKit 一键部署脚本
+
+该脚本提供了MEvalKit的完整部署解决方案，支持多种部署模式：
+- 构建镜像并启动服务
+- 只构建镜像
+- 只启动服务
+- 重新构建并启动
+- 服务管理（停止、重启、查看日志等）
+
+支持 rootless Docker 环境，提供彩色输出和详细的错误处理。
+
+作者: MEvalKit Team
+版本: 1.0.0
+"""
+
 # MEvalKit 一键部署脚本
 # 支持 rootless Docker 环境
 
-set -e
+set -e  # 遇到错误立即退出
 
 # 默认配置
-IMAGE_NAME="mevalkit"
-TAG="latest"
-PORT="1984"
-CONTAINER_NAME="mevalkit"
+IMAGE_NAME="mevalkit"      # Docker镜像名称
+TAG="latest"              # 镜像标签
+PORT="1984"               # 服务端口
+CONTAINER_NAME="mevalkit" # 容器名称
 
-# 颜色定义
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m' # No Color
+# 颜色定义（用于彩色输出）
+RED='\033[0;31m'          # 红色（错误）
+GREEN='\033[0;32m'        # 绿色（成功）
+YELLOW='\033[1;33m'       # 黄色（警告）
+BLUE='\033[0;34m'         # 蓝色（信息）
+NC='\033[0m'              # 无颜色（重置）
 
-# 打印带颜色的消息
+# 打印带颜色的消息函数
+
 print_message() {
+    """
+    打印信息消息（绿色）
+    
+    参数:
+        $1: 要打印的消息内容
+    """
     echo -e "${GREEN}[INFO]${NC} $1"
 }
 
 print_warning() {
+    """
+    打印警告消息（黄色）
+    
+    参数:
+        $1: 要打印的警告内容
+    """
     echo -e "${YELLOW}[WARNING]${NC} $1"
 }
 
 print_error() {
+    """
+    打印错误消息（红色）
+    
+    参数:
+        $1: 要打印的错误内容
+    """
     echo -e "${RED}[ERROR]${NC} $1"
 }
 
 print_header() {
+    """
+    打印脚本头部信息（蓝色边框）
+    """
     echo -e "${BLUE}================================${NC}"
     echo -e "${BLUE}  MEvalKit 一键部署脚本${NC}"
     echo -e "${BLUE}================================${NC}"
@@ -39,6 +77,11 @@ print_header() {
 
 # 显示帮助信息
 show_help() {
+    """
+    显示脚本使用帮助信息
+    
+    列出所有可用的命令行选项和示例用法
+    """
     echo "用法: $0 [选项]"
     echo ""
     echo "选项:"
@@ -61,6 +104,13 @@ show_help() {
 
 # 检查Docker环境
 check_docker() {
+    """
+    检查Docker环境是否可用
+    
+    检查项目：
+    - Docker命令是否安装
+    - Docker守护进程是否运行
+    """
     if ! command -v docker &> /dev/null; then
         print_error "Docker 未安装或不在 PATH 中"
         exit 1
@@ -76,6 +126,11 @@ check_docker() {
 
 # 检查环境文件
 check_env_file() {
+    """
+    检查并创建环境配置文件
+    
+    如果.env文件不存在，从env.example复制并提示用户配置
+    """
     if [[ ! -f ".env" ]]; then
         print_warning ".env 文件不存在，正在创建..."
         if [[ -f "env.example" ]]; then
@@ -93,6 +148,13 @@ check_env_file() {
 
 # 构建镜像
 build_image() {
+    """
+    构建Docker镜像
+    
+    支持两种构建方式：
+    - 使用docker/build_image.sh脚本（如果存在）
+    - 直接使用docker build命令
+    """
     print_message "开始构建镜像..."
     if [[ -d "docker" ]]; then
         cd docker && ./build_image.sh && cd ..

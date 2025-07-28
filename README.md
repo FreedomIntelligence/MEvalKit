@@ -16,6 +16,7 @@
 - **🐳 Docker部署**：提供完整的Docker部署方案，快速搭建评测环境
 - **🔄 断点续评**：支持评测任务的中断和恢复，避免重复计算
 - **📈 排行榜系统**：自动生成模型性能排行榜，便于比较分析
+- **🔒 数据安全**：支持加密数据库存储，保护评测数据安全
 
 ## 📋 目录
 
@@ -262,7 +263,10 @@ MEvalKit/
 │   ├── ImageMCQ_eval.py  # 图像多选题评测
 │   └── LLMJudge_eval.py  # LLMJudge评测
 ├── src/                  # 工具模块
-│   └── utils/           # 工具函数
+│   ├── utils/           # 工具函数
+│   ├── database/        # 数据库模块
+│   ├── api/            # API接口模块
+│   └── dataset/        # 数据集处理模块
 ├── dataset_info/        # 数据集配置
 │   ├── text_dataset.json
 │   ├── image_dataset.json

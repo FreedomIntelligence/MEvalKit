@@ -1,3 +1,17 @@
+"""
+MEvalKit Web应用主文件
+
+该文件提供了基于Flask的Web界面，用于管理模型评测任务。
+主要功能包括：
+- 任务创建和管理
+- 实时进度监控
+- 结果查看和排行榜
+- API文档自动生成
+
+作者: MEvalKit Team
+版本: 1.0.0
+"""
+
 from flask import Flask, render_template, request, jsonify, redirect, url_for, send_file
 from flasgger import Swagger, swag_from
 import subprocess
@@ -16,14 +30,20 @@ import socket
 current_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, current_dir)
 
+# 导入评测模块
 from src.utils.model_and_dataset import *
 from evaluation.TextMCQ_eval import *
 from evaluation.ImageMCQ_eval import *
 from evaluation.LLMJudge_eval import *
 
+# 导入数据库模块
+from src.database.repository import evaluation_repo, task_repo
+from src.database.models import db_manager
+
+# 创建Flask应用实例
 app = Flask(__name__)
 
-# 简化的Swagger配置
+# Swagger API文档配置
 swagger_config = {
     "headers": [],
     "specs": [
@@ -39,9 +59,15 @@ swagger_config = {
     "specs_route": "/apidocs/"
 }
 
-# 动态获取host
 def get_swagger_host():
-    """动态获取Swagger host配置"""
+    """
+    动态获取Swagger host配置
+    
+    优先使用环境变量SWAGGER_HOST，如果没有则使用服务器IP地址
+    
+    返回:
+        str: Swagger配置的host地址
+    """
     # 优先使用环境变量
     host = os.environ.get('SWAGGER_HOST')
     if host:
@@ -50,6 +76,7 @@ def get_swagger_host():
     # 如果没有环境变量，使用服务器IP
     return "localhost:5010"
 
+# Swagger模板配置
 swagger_template = {
     "swagger": "2.0",
     "info": {
@@ -66,9 +93,14 @@ swagger_template = {
     "schemes": ["http"]
 }
 
+# 初始化Swagger
 swagger = Swagger(app, config=swagger_config, template=swagger_template)
 
-# Swagger文档配置
+# 初始化数据库
+db_manager.create_tables()
+print("数据库表已创建")
+
+# Swagger文档配置字典
 swagger_docs = {
     "index": {
         "tags": ["页面路由"],
@@ -347,6 +379,28 @@ DEFAULT_USER = "test"
 
 def get_user_evaluations(user_id):
     """获取用户的所有评测记录"""
+    try:
+        # 优先从数据库获取
+        evaluations = evaluation_repo.get_user_evaluations(user_id)
+        
+        # 转换为前端需要的格式
+        formatted_evaluations = []
+        for eval_data in evaluations:
+            formatted_eval = {
+                "business_id": eval_data.get("business_id", ""),
+                "valid_ratio": eval_data.get("valid_ratio", 0.0),
+                "score": eval_data.get("score", 0.0),
+                "raw_score": eval_data.get("raw_score", 0.0),
+                "file_path": f"results/{user_id}/{eval_data.get('business_id', '')}_score.json",  # 兼容性
+                "created_time": eval_data.get("created_at", "").replace("T", " ").split(".")[0] if eval_data.get("created_at") else ""
+            }
+            formatted_evaluations.append(formatted_eval)
+        
+        return formatted_evaluations
+    except Exception as e:
+        print(f"从数据库获取用户评测记录失败: {str(e)}")
+        
+        # 如果数据库失败，回退到文件系统（兼容性）
     evaluations = []
     user_results_dir = RESULTS_DIR / user_id
     
@@ -419,6 +473,31 @@ def update_leaderboard():
     global leaderboard_data, last_leaderboard_update
     if time.time() - last_leaderboard_update < 300:
         return
+    
+    try:
+        # 优先从数据库获取排行榜数据
+        for dataset in LEADERBOARD_DATASETS:
+            leaderboard_data[dataset] = {}
+            db_leaderboard = evaluation_repo.get_leaderboard_data(dataset)
+            
+            for item in db_leaderboard:
+                model_name = item.get("model_name", "")
+                score = item.get("score", 0)
+                raw_score = item.get("raw_score", 0)
+                timestamp = item.get("timestamp", 0)
+                date = item.get("date", "")
+                
+                if model_name not in leaderboard_data[dataset] or score > leaderboard_data[dataset][model_name]["score"]:
+                    leaderboard_data[dataset][model_name] = {
+                        "raw_score": raw_score,
+                        "score": score,
+                        "timestamp": timestamp,
+                        "date": date
+                    }
+    except Exception as e:
+        print(f"从数据库更新排行榜失败: {str(e)}")
+        
+        # 如果数据库失败，回退到文件系统（兼容性）
     for dataset in LEADERBOARD_DATASETS:
         score_files = glob.glob(str(RESULTS_DIR / f"{dataset}_*_score.json"))
         for file in score_files:
@@ -439,6 +518,7 @@ def update_leaderboard():
                         }
             except Exception as e:
                 print(f"读取评测结果出错: {str(e)}")
+    
     last_leaderboard_update = time.time()
 
 def calculate_overall_rankings():
@@ -746,8 +826,6 @@ def run_evaluation():
                 cmd.extend(["--model_key", model_key])
             elif evaluation_mode == "manual":
                 cmd.extend(["--model_name", model_name])
-                cmd.extend(["--api_base", api_base])
-                cmd.extend(["--model_key", model_key])
                 cmd.extend(["--response_url", response_url])
                 
             # 运行命令
@@ -812,6 +890,12 @@ def run_evaluation():
             if process.returncode == 0:
                 active_tasks[task_id]["is_evaluation_complete"] = True
                 active_tasks[task_id]["status"] = "evaluation_complete"
+                
+                # 对于手动评测，立即设置进度为100%
+                if evaluation_mode == "manual":
+                    active_tasks[task_id]["progress"] = 100
+                    active_tasks[task_id]["completed_questions"] = 1
+                    active_tasks[task_id]["total_questions"] = 1
                     
                 # 评测完成后检查完成状态
                 check_completion_status(task_id)
@@ -928,23 +1012,83 @@ def task_status(task_id):
             "raw_score": task.get("raw_score", 0)
         })
     
+    # 对于手动评测，如果状态是evaluation_complete但还没有详细信息，尝试再次检查
+    if (task.get("evaluation_mode") == "manual" and 
+        task.get("status") == "evaluation_complete" and 
+        task.get("total_questions", 0) == 0):
+        # 强制重新检查
+        if check_completion_status(task_id):
+            # 更新响应数据
+            response_data.update({
+                "total_questions": task.get("total_questions", 0),
+                "completed_questions": task.get("completed_questions", 0),
+                "completion_rate": task.get("completed_questions", 0) / task.get("total_questions", 1) 
+                                  if task.get("total_questions", 0) > 0 else 0,
+            })
+            
+            if task.get("status") in ["completed", "incomplete"]:
+                response_data.update({
+                    "valid_questions": task.get("valid_questions", 0),
+                    "valid_rate": task.get("valid_rate", 0),
+                    "is_valid_evaluation": task.get("is_valid_evaluation", False),
+                    "score": task.get("score", 0),
+                    "raw_score": task.get("raw_score", 0)
+                })
+    
     return jsonify(response_data)
 
 def check_completion_status(task_id):
-    """检查任务完成状态并从result.json获取评测结果"""
+    """检查任务完成状态并从数据库获取评测结果"""
     task = active_tasks[task_id]
     
-    # 评测完成后，读取result.json文件获取详细结果
+    # 评测完成后，从数据库获取详细结果
     if task.get("is_evaluation_complete", False):
         dataset = task["dataset"]
         model = task["model"]
         business_id = task.get("business_id", "MMLUdoubao03")
         user_id = task.get("user_id", DEFAULT_USER)
+        evaluation_mode = task.get("evaluation_mode", "automatic")
         
-        # 使用正确的文件路径格式（包含user_id和business_id）
+        try:
+            # 优先从数据库获取结果
+            db_result = evaluation_repo.get_evaluation_result(business_id, user_id)
+            
+            if db_result and db_result.is_completed:
+                # 从数据库获取数据
+                result_data = db_result.result_data
+                total_questions = db_result.total_questions
+                valid_questions = db_result.valid_questions
+                valid_rate = db_result.valid_ratio
+                score = db_result.score
+                raw_score = db_result.raw_score
+                
+                task["total_questions"] = total_questions
+                task["valid_questions"] = valid_questions
+                task["valid_rate"] = valid_rate
+                task["is_valid_evaluation"] = valid_rate >= 0.95  # 有效率>=95%为有效评测
+                task["score"] = score
+                task["raw_score"] = raw_score
+                
+                return True
+            else:
+                # 如果数据库中没有完成的结果，回退到文件系统（兼容性）
         user_results_dir = RESULTS_DIR / user_id
-        result_path = user_results_dir / f"{business_id}_result.json"
-        score_result_path = user_results_dir / f"{business_id}_score.json"
+        
+        # 根据评测模式确定文件名
+        if evaluation_mode == "manual":
+            result_path = user_results_dir / f"{business_id}_manual_result.json"
+            score_result_path = user_results_dir / f"{business_id}_manual_score.json"
+        else:
+            result_path = user_results_dir / f"{business_id}_result.json"
+            score_result_path = user_results_dir / f"{business_id}_score.json"
+        
+        # 如果文件不存在，等待一段时间后重试
+        if not result_path.exists():
+            import time
+            time.sleep(2)  # 等待2秒让文件生成
+            if not result_path.exists():
+                print(f"结果文件不存在: {result_path}")
+                return False
         
         if result_path.exists():
             try:

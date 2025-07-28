@@ -6,15 +6,15 @@ services:
     container_name: mevalkit
     ports:
       - "1984:1984"
-    volumes:
-      # 数据持久化
-      - ./results:/app/results
-      - ./logs:/app/logs
-      - ./stress_test_results:/app/stress_test_results
-      - ./data:/app/data
-      - ./dataset_info:/app/dataset_info
-      - ./custom_models:/app/custom_models
-      - ./datasets_and_models:/app/datasets_and_models
+    # volumes:
+    #   # 数据持久化
+    #   - ./results:/app/results
+    #   - ./logs:/app/logs
+    #   - ./stress_test_results:/app/stress_test_results
+    #   - ./data:/app/data
+    #   - ./dataset_info:/app/dataset_info
+    #   - ./custom_models:/app/custom_models
+    #   - ./datasets_and_models:/app/datasets_and_models
     environment:
       - FLASK_APP=app.py
       - FLASK_ENV=production

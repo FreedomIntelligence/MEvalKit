@@ -32,7 +32,7 @@ class LLMJudgeBase:
         loading_way = information.get('loading_way', '')
         key = information.get('key', '')
         sub_key = information.get('sub_key', "")
-        data = loading_map[loading_way](information)
+        data = load_dataset_compile(information, loading_way)
         result = []
         for d in data:
             if isinstance(key, str):
@@ -84,7 +84,7 @@ class LLMJudgeBase:
         loading_way = information['loading_way']
         models = information['models']
         result = {}
-        data = loading_map[loading_way](information)
+        data = load_dataset_compile(information, loading_way)
         for model in models:
             result[model] = []
             for d in data:

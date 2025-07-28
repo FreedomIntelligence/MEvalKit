@@ -40,7 +40,7 @@ class ImageMCQ:
         loading_way = information['loading_way']
         key = information[key_name]
         sub_key = information.get('sub_key', "")
-        data = loading_map[loading_way](information)
+        data = load_dataset_compile(information, loading_way)
         result = []
         for d in data:
             if isinstance(key, str):
@@ -83,7 +83,7 @@ class ImageMCQ:
         question_type_key = q_info.get('question_type_key', '')
         
         key = q_info['key']
-        data = loading_map[loading_way](q_info)
+        data = load_dataset_compile(q_info, loading_way)
         result = []
         question_type_list = []
         for d in data:
@@ -102,7 +102,7 @@ class ImageMCQ:
         loading_way = c_info['loading_way']
         key = c_info['key']
         sub_key = c_info.get('sub_key', "")
-        data = loading_map[loading_way](c_info)
+        data = load_dataset_compile(c_info, loading_way)
         result = []
         for d in data:
             if isinstance(key, str):
@@ -130,7 +130,7 @@ class ImageMCQ:
         else: 
             loading_way = h_info['loading_way']
             key = h_info['key']
-            data = loading_map[loading_way](h_info)
+            data = load_dataset_compile(h_info, loading_way)
             result = []
             for d in data:
                 result.append(d[key])
@@ -142,7 +142,7 @@ class ImageMCQ:
             return None
         loading_way = a_info['loading_way']
         key = a_info['key']
-        data = loading_map[loading_way](a_info)
+        data = load_dataset_compile(a_info, loading_way)
         result = []
         for d in data:
             result.append(d[key])
@@ -155,7 +155,7 @@ class ImageMCQ:
             return None
         loading_way = i_info['loading_way']
         key = i_info['key']
-        data = loading_map[loading_way](i_info)
+        data = load_dataset_compile(i_info, loading_way)
         result = []
         for d in data:
             result.append(d[key])
@@ -175,7 +175,7 @@ class ImageMCQ:
         loading_way = information['loading_way']
         models = information['models']
         result = {}
-        data = loading_map[loading_way](information)
+        data = load_dataset_compile(information, loading_way)
         for model in models:
             result[model] = []
             for d in data:

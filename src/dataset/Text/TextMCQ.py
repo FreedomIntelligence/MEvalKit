@@ -52,7 +52,7 @@ class TextMCQ():
         key = information[key_name]
         # 检查是否有sub_key字段，如果没有则设为空字符串
         sub_key = information.get('sub_key', "")
-        data = loading_map[loading_way](information)
+        data = load_dataset_compile(information, loading_way)
         result = []
         for d in data:
             if isinstance(key, str):
@@ -98,7 +98,7 @@ class TextMCQ():
         question_type_key = q_info['question_type_key']
         
         key = q_info['key']
-        data = loading_map[loading_way](q_info)
+        data = load_dataset_compile(q_info, loading_way)
         result = []
         question_type_list = []
         for d in data:
@@ -123,7 +123,7 @@ class TextMCQ():
         key = c_info['key']
         # 检查是否有sub_key字段，如果没有则设为空字符串
         sub_key = c_info.get('sub_key', "")
-        data = loading_map[loading_way](c_info)
+        data = load_dataset_compile(c_info, loading_way)
         result = []
         for d in data:
             if isinstance(key, str):
@@ -155,7 +155,7 @@ class TextMCQ():
             # 读取
             loading_way = h_info['loading_way']
             key = h_info['key']
-            data = loading_map[loading_way](h_info)
+            data = load_dataset_compile(h_info, loading_way)
             result = []
             for d in data:
                 result.append(d[key])
@@ -169,7 +169,7 @@ class TextMCQ():
             return None, None
         loading_way = a_info['loading_way']
         key = a_info['key']
-        data = loading_map[loading_way](a_info)
+        data = load_dataset_compile(a_info, loading_way)
         result = []
         for d in data:
             result.append(d[key])
@@ -183,7 +183,7 @@ class TextMCQ():
         loading_way = information['loading_way']
         models = information['models']
         result = {}
-        data = loading_map[loading_way](information)
+        data = load_dataset_compile(information, loading_way)
         for model in models:
             result[model] = []
             for d in data:

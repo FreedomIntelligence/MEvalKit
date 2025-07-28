@@ -1,0 +1,125 @@
+$schema: http://json-schema.org/draft-07/schema#
+title: 选择题型大模型评测集文件读取配置schema
+description: 所有选择题型评测集将使用该schema定义的配置文件进行读取。
+version: 1.0.0
+
+definitions:
+  LoadingConfig:
+    type: object
+    properties:
+      loading_way:
+        type: string
+        enum: [json, csv, parquet, jsonl]
+        #数据加载方式，主要支持csv文件、json文件、parquet文件
+      path:
+        type: array
+        items:
+          type: string
+        #读取到该属性的数据文件的路径，支持列表形式。列表若有多个文件路径，代表列表中的所有数据集将会拼接为一个数据集。
+      key:
+        oneOf:
+          - type: array
+            items:
+              type: string
+          - type: string
+        #属性在原数据表中的字段名.
+        #question，answer, case, hint字段，只会有一个字段名。
+        #choices字段可能有多个字段名，对应选项以多个字段名的形式在原数据中排列的情况。（比如GPQA评测集）
+      prompt_template:
+        type: string
+        #提示词模板，用于对每个属性生成提示词。
+
+    required: [loading_way, path, key, prompt_template]
+
+  QuestionConfig:
+    allOf:
+      - $ref: '#/definitions/LoadingConfig'
+      - properties:
+          question_type_key:
+            oneOf:
+              - type: string
+              - type: null
+            #问题类型字段名
+    
+
+  AnswerConfig:
+    allOf:
+      - $ref: '#/definitions/LoadingConfig'
+      - properties:
+          answer_type:
+            type: string
+            enum: [choice, content]
+            #答案的呈现类型，即答案要么以选项的形式，要么以选项内容的方式呈现。
+        required: [answer_type]
+
+  ChoicesConfig:
+    allOf:
+      - $ref: '#/definitions/LoadingConfig'
+      - properties:
+          sub_key:
+            type: string
+            #选项字段名，适用于选项在原数据中以“选项：选项内容”方式呈现的情况。(比如CMB评测集)
+  
+  CaseConfig:
+    $ref: '#/definitions/LoadingConfig'
+
+  ImageConfig:
+    $ref: '#/definitions/LoadingConfig'
+
+
+  HintConfig:
+    $ref: '#/definitions/LoadingConfig'
+
+
+  DatasetConfig:
+    type: object
+    properties:
+      language:
+        type: string
+        enum: [zh, en]
+        #数据集语言，暂时仅支持中英文
+      max_score:
+        type: number
+        minimum: 0
+        maximum: 100
+        #最大分数，用于原始分数向百分制的转换
+      background:
+        oneOf:
+          - type: string
+          - type: null
+        #背景信息，用于构造system prompt
+      case:
+        oneOf:
+          - $ref: '#/definitions/CaseConfig'
+          - type: null
+      
+      image:
+        oneOf:
+          - $ref: '#/definitions/ImageConfig'
+          - type: null
+
+      question:
+        $ref: '#/definitions/QuestionConfig'
+
+      answer:
+        oneOf:
+          - $ref: '#/definitions/AnswerConfig'
+          - type: null
+
+      choices:
+        oneOf:
+          - $ref: '#/definitions/ChoicesConfig'
+          - type: null
+
+      hint:
+        oneOf:
+          - $ref: '#/definitions/HintConfig'
+          - type: null
+
+    required: [language, max_score, question, answer]
+
+type: object
+patternProperties:
+  '^[A-Za-z0-9_]+$':
+    $ref: '#/definitions/DatasetConfig'
+additionalProperties: false 

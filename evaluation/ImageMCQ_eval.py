@@ -1,26 +1,38 @@
 import sys
 import os
 import json
+import re
 import time
+import requests
 from pathlib import Path
-from openai import BadRequestError, AuthenticationError
+from openai import BadRequestError
+import concurrent.futures
+from tqdm import tqdm
 
 project_root = Path(__file__).resolve().parent.parent
 sys.path.append(str(project_root))
-# sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from src.dataset.Image.ImageMCQ import *
 from src.api.multimodal_api import *
-from src.utils.MCQ_constants import *
-from src.utils.model_and_dataset import *
 from src.utils.default_prompts import *
 from src.utils.model_and_dataset import *
-from tqdm import tqdm
-import concurrent.futures
-from typing import List, Tuple, Dict, Any, Literal
-import re
-import random
+from typing import List, Literal, Tuple, Dict, Any, Optional, Union
 from dotenv import load_dotenv
+from secure_database import SecureDatabase
+import getpass
+import json
+
+# 通过环境变量自动认证
+load_dotenv()
+username = os.environ.get("DB_USER")
+password = os.environ.get("DB_PASS")
+db = SecureDatabase("mevalkit_secure.db")
+if not db.authenticate(username, password):
+    print("认证失败，程序退出。")
+    exit(1)
+
+# 导入数据库模块
+from src.database.repository import evaluation_repo, task_repo
 
 def extract_answer(response: str, dataset_name: str):
     """
@@ -81,7 +93,7 @@ def extract_multi_answer(response: str, dataset_name: str) -> List[str]:
     
     return None
 
-def shuffle_and_convert(dataset: ImageMCQ):
+def shuffle_and_convert(dataset: ImageMCQ, shuffle: bool = True):
     """
     随机打乱选项顺序，并找到打乱后答案的索引
     
@@ -149,7 +161,8 @@ def shuffle_and_convert(dataset: ImageMCQ):
             answer = choice_list[number_index]
             
             # 打乱选项顺序
-            random.shuffle(choice_list)
+            if shuffle:
+                random.shuffle(choice_list)
             # 找到打乱后正确答案的新位置
             answer_index = chr(choice_list.index(answer) + 65)
             new_choices.append(choice_list)
@@ -159,7 +172,7 @@ def shuffle_and_convert(dataset: ImageMCQ):
 
 def write_json_file(data, file_path):
     """
-    将数据写入JSON文件
+    将数据写入JSON文件（保留兼容性）
     
     参数:
         data: 要写入的数据
@@ -184,13 +197,13 @@ def write_json_file(data, file_path):
 
 def read_json_file(file_path):
     """
-    从JSON文件读取数据
+    从JSON文件读取数据（保留兼容性）
     
     参数:
         file_path: 文件路径
     
     返回:
-        读取的数据，如果文件不存在或读取失败则返回None
+        读取的数据
     """
     try:
         if not os.path.exists(file_path):
@@ -199,6 +212,55 @@ def read_json_file(file_path):
             return json.load(f)
     except Exception as e:
         print(f"读取JSON文件时出错: {str(e)}")
+        return None
+
+# 支持upsert和分数字段的加密数据库写入函数
+def save_to_secure_database(
+    business_id, user_id, dataset_name, model_name, evaluation_mode, eval_type,
+    result_data=None, response_data=None, is_completed=False,
+    score=None, raw_score=None, valid_ratio=None, total_questions=None, valid_questions=None
+):
+    try:
+        encrypted_result = db.encrypt_data(json.dumps(result_data)) if result_data else None
+        encrypted_response = db.encrypt_data(json.dumps(response_data)) if response_data else None
+        import sqlite3
+        conn = sqlite3.connect("mevalkit_secure.db")
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO evaluation_results_secure (
+                business_id, user_id, dataset_name, model_name, evaluation_mode, eval_type,
+                result_data_encrypted, response_data_encrypted, is_completed,
+                score, raw_score, valid_ratio, total_questions, valid_questions
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(business_id, user_id) DO UPDATE SET
+                result_data_encrypted=excluded.result_data_encrypted,
+                response_data_encrypted=excluded.response_data_encrypted,
+                is_completed=excluded.is_completed,
+                score=excluded.score,
+                raw_score=excluded.raw_score,
+                valid_ratio=excluded.valid_ratio,
+                total_questions=excluded.total_questions,
+                valid_questions=excluded.valid_questions
+        """, (
+            business_id, user_id, dataset_name, model_name, evaluation_mode, eval_type,
+            encrypted_result, encrypted_response, int(is_completed),
+            score, raw_score, valid_ratio, total_questions, valid_questions
+        ))
+        conn.commit()
+        conn.close()
+        print(f"[加密数据库] business_id={business_id} 写入成功 is_completed={is_completed} score={score}")
+        return True
+    except Exception as e:
+        print(f"[加密数据库] business_id={business_id} 写入失败: {str(e)}")
+        return False
+
+def get_from_database(business_id: str, user_id: str) -> Optional[Dict[str, Any]]:
+    """从数据库获取评测结果"""
+    try:
+        result = evaluation_repo.get_evaluation_result(business_id, user_id)
+        return result.to_dict() if result else None
+    except Exception as e:
+        print(f"从数据库获取结果失败: {str(e)}")
         return None
 
 def process_image_question(args):
@@ -269,12 +331,9 @@ def evaluate_imagemcq_manual(
         response_url: str = "",
 ):
     dataset = ImageMCQ(dataset_name)
+    dataset.choices, dataset.answers = shuffle_and_convert(dataset, shuffle=False)
     dataset.max_score = dataset.dataset_info['max_score']
     language = dataset.language
-
-
-    result_file = f"results/{user_id}/{business_id}_manual_result.json"
-    score_file = f"results/{user_id}/{business_id}_manual_score.json"
 
     try:
         response = requests.get(response_url, timeout=60)
@@ -282,6 +341,9 @@ def evaluate_imagemcq_manual(
     except Exception as e:
         print(f"获取响应时出错: {str(e)}")
         return None
+    
+    if len(response) < question_limitation:
+        question_limitation = len(response)
 
     result = []
     
@@ -291,6 +353,12 @@ def evaluate_imagemcq_manual(
             "response": response[i]["response"]
         })
 
+    # 保存到数据库
+    save_to_secure_database(business_id, user_id, dataset_name, model_name, "manual", "imagemcq", result, None, True)
+    
+    # 同时保存到文件（兼容性）
+    result_file = f"results/{user_id}/{business_id}_manual_result.json"
+    score_file = f"results/{user_id}/{business_id}_manual_score.json"
     write_json_file(result, result_file)
 
     return calculate_valid_ratio_and_score(result_file, dataset.answers, score_file, max_score=dataset.max_score, business_id=business_id)
@@ -319,22 +387,41 @@ def evaluate_imagemcq_automatic(
     返回:
         评估结果和准确率
     """
-    # 准备文件路径
-    result_file = f"results/{user_id}/{business_id}_result.json"
-    accuracy_file = f"results/{user_id}/{business_id}_score.json"
-    
     # 加载数据集
     dataset = ImageMCQ(dataset_name)
-    dataset.choices, dataset.answers = shuffle_and_convert(dataset)
+    dataset.choices, dataset.answers = shuffle_and_convert(dataset, shuffle=True)
     language = dataset.language
     background = dataset.background
 
-    # 初始化结果
+    # 尝试从数据库获取现有结果
+    existing_db_result = get_from_database(business_id, user_id)
+    
+    if existing_db_result and existing_db_result.get('result_data'):
+        existing_results = existing_db_result['result_data']
+    else:
+        # 从文件读取（兼容性）
+        result_file = f"results/{user_id}/{business_id}_result.json"
+        response_file = f"results/{user_id}/{business_id}_response.json"
     existing_results = read_json_file(result_file)
-    # TODO 这里也有同样的问题，参照TextMCQ_eval.py 里进行修改吧
+    
     if not existing_results:
         existing_results = [{"id": i, "response": "Neglected"} for i in range(question_limitation)]
+        # 保存到数据库
+        save_to_secure_database(business_id, user_id, dataset_name, model_name, "automatic", "imagemcq", existing_results, existing_results, False)
+        # 同时保存到文件（兼容性）
+        write_json_file(existing_results, response_file)
         write_json_file(existing_results, result_file)
+    else:
+        current_length = len(existing_results)
+        if current_length < question_limitation:
+            for i in range(current_length, question_limitation):
+                existing_results.append({"id": i, "response": "Neglected"})
+            # 保存到数据库
+            save_to_secure_database(business_id, user_id, dataset_name, model_name, "automatic", "imagemcq", existing_results, existing_results, False)
+            # 同时保存到文件（兼容性）
+            write_json_file(existing_results, result_file)
+            write_json_file(existing_results, response_file)
+
     args_list = []
     for i in range(question_limitation):
         if existing_results[i]['response'] != "Neglected":
@@ -357,9 +444,51 @@ def evaluate_imagemcq_automatic(
         for future in tqdm(concurrent.futures.as_completed(futures), total=len(futures), desc=f"评测中"):
             idx, response, answer = future.result()
             existing_results[idx]["response"] = response
+            # 保存到数据库
+            save_to_secure_database(business_id, user_id, dataset_name, model_name, "automatic", "imagemcq", existing_results, existing_results, False)
+            # 同时保存到文件（兼容性）
             write_json_file(existing_results, result_file)
+            write_json_file(existing_results, response_file)
     
-    return calculate_valid_ratio_and_score(result_file, dataset.answers, accuracy_file, max_score=dataset.max_score, business_id=business_id)
+    # 生成评分摘要（兼容性）
+    accuracy_file = f"results/{user_id}/{business_id}_score.json"
+    valid_ratio, score = calculate_valid_ratio_and_score(result_file, dataset.answers, accuracy_file, max_score=dataset.max_score, business_id=business_id)
+    
+    # 读取计算出的分数并更新数据库
+    try:
+        with open(accuracy_file, 'r', encoding='utf-8') as f:
+            score_data = json.load(f)
+        
+        # 计算统计信息
+        total_questions = len(existing_results)
+        valid_questions = sum(1 for item in existing_results if item.get("response") != "Neglected")
+        
+        # 准备完整的最终结果数据
+        final_result = {
+            'total_questions': total_questions,
+            'valid_questions': valid_questions,
+            'valid_ratio': score_data.get('valid_ratio', 0.0),
+            'raw_score': score_data.get('raw_score', 0.0),
+            'score': score_data.get('score', 0.0),
+            'result_data': existing_results,
+            'response_data': existing_results
+        }
+        
+        # 完成评测，保存最终结果（包含分数）
+        save_to_secure_database(business_id, user_id, dataset_name, model_name, "automatic", "imagemcq", existing_results, existing_results, True,
+                                score=final_result['score'], raw_score=final_result['raw_score'], valid_ratio=final_result['valid_ratio'],
+                                total_questions=final_result['total_questions'], valid_questions=final_result['valid_questions'])
+        
+        # 使用complete_evaluation方法确保分数被正确保存
+        from src.database.repository import evaluation_repo
+        evaluation_repo.complete_evaluation(business_id, user_id, final_result)
+        
+    except Exception as e:
+        print(f"更新数据库分数失败: {str(e)}")
+        # 即使分数更新失败，也要保存基本结果
+        save_to_secure_database(business_id, user_id, dataset_name, model_name, "automatic", "imagemcq", existing_results, existing_results, True)
+    
+    return valid_ratio, score
 
 
 def calculate_valid_ratio_and_score(result_file, answers, accuracy_file, question_type_list=None, neglected_threshold=0.05, max_score=1, business_id=""):

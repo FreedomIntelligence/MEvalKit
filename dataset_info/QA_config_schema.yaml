@@ -1,0 +1,110 @@
+$schema: http://json-schema.org/draft-07/schema#
+title: 问答型大模型评测集文件读取配置schema
+description: 所有问答型评测集将使用该schema定义的配置文件进行读取。
+version: 1.0.0
+
+definitions:
+  LoadingConfig:
+    type: object
+    properties:
+      loading_way:
+        type: string
+        enum: [json, csv, parquet, jsonl]
+        #数据加载方式
+      path:
+        type: array
+        items:
+          type: string
+        #数据文件路径
+      key:
+        oneOf:
+          - type: array
+            items:
+              type: string
+          - type: string
+        #属性在原数据表中的字段名
+        #question、reference_answer、case字段皆可能拥有多个字段名，这代表多轮对话的QA评测集。
+      prompt_template:
+        oneOf:
+          - type: null
+          - type: string
+        #提示词模板，用于对每个属性生成提示词。
+    required: [loading_way, path, key]
+
+  TextLoadingConfig:
+    type: object
+    properties:
+      loading_way:
+        type: string
+        enum: [txt, content]
+      path:
+        type: string
+    required: [loading_way, path]
+
+  QuestionConfig:
+    $ref: '#/definitions/LoadingConfig'
+  
+  ReferenceAnswerConfig:
+    $ref: '#/definitions/LoadingConfig'
+
+  CaseConfig:
+    $ref: '#/definitions/LoadingConfig'
+
+  DatasetConfig:
+    type: object
+    properties:
+      language:
+        type: string
+        enum: [zh, en]
+
+      max_score:
+        type: number
+        minimum: 0
+        maximum: 100
+        
+      background:
+        oneOf:
+          - type: null
+          - type: object
+            properties:
+              loading_way:
+                type: string
+                enum: [txt, content]
+              path:
+                type: string
+            required: [loading_way, path]
+        #背景信息加载方式。假如使用txt方式加载，则path为txt文件的路径。假如使用content方式加载，则path为背景信息字符串。
+      case:
+        oneOf:
+          - $ref: '#/definitions/CaseConfig'
+          - type: null
+
+      question:
+        $ref: '#/definitions/QuestionConfig'
+
+      reference_answer:
+        oneOf:
+          - $ref: '#/definitions/ReferenceAnswerConfig'
+          - type: null
+      
+      scoring_criteria:
+        type: string
+        enum: [accuracy, f1-score, llmjudge, bleu, rouge]
+
+      judge_prompt:
+        oneOf:
+          - type: null
+          - $ref: '#/definitions/TextLoadingConfig'
+
+      judge_prompt_with_reference:
+        oneOf:
+          - type: null
+          - $ref: '#/definitions/TextLoadingConfig'
+
+    required: [language, max_score, background, case, question, reference_answer, judge_prompt, judge_prompt_with_reference]
+
+type: object
+patternProperties:
+  '^[A-Za-z0-9_]+$':
+    $ref: '#/definitions/DatasetConfig'
+additionalProperties: false
