@@ -67,10 +67,7 @@ results/
 .coverage
 htmlcov/
 
-# 确保压力测试脚本被包含
-!evaluation_stress_test.py
-!quick_stress_test.py
-!run_stress_test.sh
+
 
 # 开发容器
 .devcontainer/

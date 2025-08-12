@@ -25,11 +25,9 @@ definitions:
         #属性在原数据表中的字段名.
         #question，answer, case, hint字段，只会有一个字段名。
         #choices字段可能有多个字段名，对应选项以多个字段名的形式在原数据中排列的情况。（比如GPQA评测集）
-      prompt_template:
-        type: string
-        #提示词模板，用于对每个属性生成提示词。
 
-    required: [loading_way, path, key, prompt_template]
+
+    required: [loading_way, path, key]
 
   QuestionConfig:
     allOf:

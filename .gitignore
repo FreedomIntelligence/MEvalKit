@@ -177,6 +177,41 @@ cython_debug/
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 .idea/
 
+# MEvalKit 特定文件
+# 数据库文件
+*.db
+*.sqlite
+*.sqlite3
+mevalkit.db
+mevalkit_secure.db
+data/mevalkit_secure.db
+
+# 评测结果
+results/
+stress_test_results/
+
+# 打包文件
+*.tar
+*.tar.gz
+*.zip
+mevalkit.tar
+
+# 临时和缓存目录
+database/
+datasets_and_models/
+test/
+special_equipment*
+node_modules_back/
+
+# 配置文件（敏感信息）
+.env.example
+config.json
+db_config.json
+
+# IDE 和编辑器
+.cursor/
+.vscode/settings.json
+
 # Logs
 logs
 *.log

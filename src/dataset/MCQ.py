@@ -14,61 +14,56 @@ from tqdm import tqdm
 
 DATASET_INFO = load_yaml_dataset_info("dataset_info/MCQ_config.yaml")
 
-class MCQ():
+class MCQ:
 
     def __init__(self, dataset_name: str):
         self.dataset_info = DATASET_INFO[dataset_name]
         self.language = self.dataset_info['language']
         self.max_score = self.dataset_info['max_score']
         self.question = self.load_table_component("question", "key")
+        self.question_type_key = self.dataset_info['question'].get('question_type_key', None)
+        if self.question_type_key is None:
+            self.question_type_list = ['single'] * len(self.question)
+        else:
+            self.question_type_list = self.load_table_component("question", "question_type_key")
         self.background = self.load_text_content("background")
         self.case = self.load_table_component("case", "key")
-        if self.case is None:
-            self.case = [None] * len(self.question)
         self.image = self.load_table_component("image", "key")
-        if self.image is None:
-            self.image = [None] * len(self.question)
         self.answer = self.load_table_component("answer", "key")
-        if self.answer is None:
-            self.answer = [None] * len(self.question)
-        self.choices = self.load_table_component("choices", "key")
-        if self.choices is None:
-            self.choices = [None] * len(self.question)
+        self.hint = self.load_table_component("hint", "key")
+        self.answer_type = self.dataset_info['answer'].get('answer_type', 'choice') if self.dataset_info['answer'] != {} else 'choice'
+        self.choice = self.load_table_component("choices", "key")
 
     def load_table_component(self, type: str, key_name: str):
-        information = self.dataset_info[type]
+        data = []
+        information = self.dataset_info.get(type, None)
         if information is None:
             return None
-        loading_way = information['loading_way']
+        loading_way = information.get('loading_way', "")
         key = information.get(key_name, "")
         sub_key = information.get("sub_key", "")
-        data = load_dataset_compile(information, loading_way)
-        result = []
-        for d in data:
-            if isinstance(key, str):
-                # 如果key为空字符串，跳过这个字段
-                if key == "":
-                    continue
-                if sub_key == "":
-                    result.append(d[key])
-                elif isinstance(sub_key, str): 
-                    result.append(d[key][sub_key])
-                elif isinstance(sub_key, list):
-                    elements = []
-                    for k in sub_key:
-                        if k in d[key]:
-                            elements.append(d[key][k])
-                    result.append(elements)
-            elif isinstance(key, list):
-                elements = []
+        if loading_way == "":
+            return None
+        raw_data = load_dataset_compile(information, loading_way)
+        
+        # 特殊处理choices类型：如果有多个key，需要将它们组合成一个选项列表
+        if type == "choices" and len(key) > 1:
+            for d in raw_data:
+                # 将多个字段组合成一个选项列表
+                choice_list = []
                 for k in key:
-                    elements.append(d[k])
-                result.append(elements)
-        return result
+                    choice_list.append(d[k])
+                data.append(choice_list)
+        else:
+            # 原有逻辑：单个字段或其他类型
+            for d in raw_data:
+                for k in key:
+                    data.append(d[k])
+        return data
     
     def load_text_content(self, type: str):
         information = self.dataset_info[type]
-        if information == {}:
+        if information is None:
             return None
         loading_way = information["loading_way"]
         if loading_way == "content":

@@ -143,7 +143,7 @@ class TextAPI:
                                     "content": self.user_prompt
                                 }
                             ],
-                            "max_tokens": 1024,  # 最大生成token数
+                            "max_tokens": 4096,  # 最大生成token数
                             "temperature": self.temperature,  # 温度参数
                             "top_p": 0.7,  # 核采样参数
                             "frequency_penalty": 0.5,  # 频率惩罚

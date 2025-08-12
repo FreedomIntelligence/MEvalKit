@@ -7,18 +7,22 @@ MT-Bench:
 
   case: null
 
+  image: null
+
   question:
     loading_way: json
     path:
       - data/mt-bench/question.jsonl
-    key: turns
+    key:
+      - turns
     prompt_template: "Question: {question}"
 
   reference_answer:
     loading_way: json
     path:
       - data/mt-bench/question.jsonl
-    key: reference
+    key: 
+      - reference
     prompt_template: "Reference Answer: {reference_answer}"
 
   judge_prompt:
@@ -37,18 +41,22 @@ MedEthicsMatrixCase:
 
   background: null
 
+  image: null
+
   case:
     loading_way: csv
     path:
       - data/MedEthicsMatrixCase/MedEthicsMatrixCase.csv
-    key: case
+    key: 
+      - case
     prompt_template: "Case: {case}"
 
   question:
     loading_way: csv
     path:
       - data/MedEthicsMatrixCase/MedEthicsMatrixCase.csv
-    key: questions
+    key: 
+      - questions
     prompt_template: "Question: {question}"
 
   reference_answer: null
@@ -62,52 +70,7 @@ MedEthicsMatrixCase:
   judge_prompt_with_reference: null
 
 
-DxBench:
-  language: zh
 
-  max_score: 100
 
-  background: null
-  case:
-    loading_way: json
-    path:
-      - data/DXBench/DxBench_zh.json
-    key: 
-      - explicit_symptoms
-      - implicit_symptoms
 
-    prompt_template: |
-      患者显性症状（患者明确表达或明显可见的症状）：
-      {explicit_symptoms}
-      
-      患者隐性症状（通过检查、病史或观察发现的症状）：
-      {implicit_symptoms}
-      
-      候选疾病：{candidate_diseases}
-      
-      说明：症状后的"True"表示该症状存在，"False"表示该症状不存在。
-
-  question: 
-    loading_way: json
-    path:
-      - data/DXBench/DxBench_zh.json
-    key: candidate_diseases
-
-    prompt_template: |
-      候选疾病: {candidate_diseases}
-
-      请根据患者的症状信息，从候选疾病中选择最可能的诊断结果。请只回答疾病名称。  
-      
-
-  reference_answer:
-    loading_way: json
-    path:
-      - data/DXBench/DxBench_zh.json
-    key: disease
-
-  scoring_criteria: accuracy
-
-  judge_prompt: null
-
-  judge_prompt_with_reference: null
 

@@ -50,6 +50,9 @@ definitions:
   CaseConfig:
     $ref: '#/definitions/LoadingConfig'
 
+  ImageConfig:
+    $ref: '#/definitions/LoadingConfig'
+
   DatasetConfig:
     type: object
     properties:
@@ -77,6 +80,11 @@ definitions:
       case:
         oneOf:
           - $ref: '#/definitions/CaseConfig'
+          - type: null
+
+      image:
+        oneOf:
+          - $ref: '#/definitions/ImageConfig'
           - type: null
 
       question:

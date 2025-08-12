@@ -20,9 +20,8 @@ project_root = Path(__file__).resolve().parent.parent
 sys.path.append(str(project_root))
 
 # 导入评估模块
-from evaluation.TextMCQ_eval import evaluate_mcq_manual, evaluate_mcq_automatic
-from evaluation.ImageMCQ_eval import evaluate_imagemcq_manual, evaluate_imagemcq_automatic
-from evaluation.LLMJudge_eval import evaluate_llmjudge_automatic, evaluate_llmjudge_manual
+from evaluation.MCQ_eval import evaluate_all_mcq_automatic
+from evaluation.QA_eval import evaluate_qa_automatic
 
 from src.utils.model_and_dataset import *
 
@@ -69,18 +68,18 @@ def parse_automatic_args(unknown_args):
     parser = argparse.ArgumentParser()
     parser.add_argument("--user_id", type=str, required=False, default="test",
                         help="用户id")
-    parser.add_argument("--dataset", type=str, required=False, default="MMLU",
+    parser.add_argument("--dataset", type=str, required=False, default="GPQA",
                         help="数据集名称，例如MMLU、GPQA等")
     # parser.add_argument("--model_type", type=str, required=False, default="default",
     #                     help="模型类型，例如vllm、openai等")
-    parser.add_argument("--model_name", type=str, required=False, default="doubao-1.5-pro-32k",
+    parser.add_argument("--model_name", type=str, required=False, default="gpt-oss-20b",
                         help="准备进行评测的模型名称")
-    parser.add_argument("--api_base", type=str, required=False, default="",
+    parser.add_argument("--api_base", type=str, required=False, default="http://aistation.sribd.cn:30001/v1",
                         help="API接口地址")
     parser.add_argument("--model_key", type=str, required=False, default="",
                         help="模型key")
-    parser.add_argument("--business_id", type=str, required=False, default="MMLU_dbtest100",
-                        help="业务id")
+    parser.add_argument("--business_id", type=str, required=False, default=None,
+                        help="业务id，如果不提供则自动生成新的business_id")
     # parser.add_argument("--evaluate_mode", type=str, required=False, default="start_from_beginning")
     parser.add_argument("--question_limitation", type=int, required=False, default=100,
                         help="评测的问题数量")
@@ -113,8 +112,8 @@ def parse_manual_args(unknown_args):
                         help="数据集名称，例如MMStar等")
     parser.add_argument("--model_name", type=str, required=False, default="我的测试1",
                         help="准备进行评测的模型名称")
-    parser.add_argument("--business_id", type=str, required=False, default="TEST2_MCQ",
-                        help="业务id")
+    parser.add_argument("--business_id", type=str, required=False, default=None,
+                        help="业务id，如果不提供则自动生成新的business_id")
     parser.add_argument("--question_limitation", type=int, required=False, default=100,
                         help="评测的问题数量")
     parser.add_argument("--response_url", type=str, required=False, default="http://47.110.252.218:1995/admin-api/infra/file/31/get/evaluation/answer/20250721/mcq_1753066731583.json",
@@ -153,9 +152,10 @@ def main():
         results = {}
         accuracy_result = {}
         # 调用相应的评估函数
-        if args.dataset in TEXT_DATASETS:
-            print(f"执行文本多选题评估，并行工作线程数: {1}")
-            valid_ratio, score = evaluate_mcq_automatic(
+        # MCQ型数据集（多选题）
+        if args.dataset in TEXT_DATASETS or args.dataset in MULTIMODAL_DATASETS:
+            print(f"执行MCQ多选题评估，并行工作线程数: {64}")
+            valid_ratio, score = evaluate_all_mcq_automatic(
                 user_id=args.user_id,
                 dataset_name=args.dataset,
                 model_name=args.model_name,
@@ -163,33 +163,17 @@ def main():
                 api_base=args.api_base,
                 business_id=args.business_id,
                 question_limitation=args.question_limitation,
-                max_workers=64
+                max_workers=32
             )
             results[args.dataset] = {
                 "valid_ratio": valid_ratio,
                 "score": score
             }
             accuracy_result[args.dataset] = score
-        elif args.dataset in MULTIMODAL_DATASETS:
-            print(f"执行图像多选题评估，并行工作线程数: {1}")
-            valid_ratio, score = evaluate_imagemcq_automatic(
-                user_id=args.user_id,
-                dataset_name=args.dataset,
-                model_name=args.model_name,
-                model_key=args.model_key,
-                api_base=args.api_base,
-                business_id=args.business_id,
-                question_limitation=args.question_limitation,
-                max_workers=1
-            )
-            results[args.dataset] = {
-                "valid_ratio": valid_ratio,
-                "score": score
-            }
-            accuracy_result[args.dataset] = score
+        # QA型数据集（问答题）
         elif args.dataset in LLMJUDGE_DATASETS:
-            print(f"执行LLMJudge评估，并行工作线程数: {1}")
-            valid_ratio, score = evaluate_llmjudge_automatic(
+            print(f"执行QA问答题评估，并行工作线程数: {1}")
+            score = evaluate_qa_automatic(
                 user_id=args.user_id,
                 dataset_name=args.dataset,
                 model_name=args.model_name,
@@ -197,10 +181,9 @@ def main():
                 api_base=args.api_base,
                 business_id=args.business_id,
                 question_limitation=args.question_limitation,
-                max_workers=1
+                max_workers=32
             )
             results[args.dataset] = {
-                "valid_ratio": valid_ratio,
                 "score": score
             }
             accuracy_result[args.dataset] = score
@@ -220,55 +203,8 @@ def main():
         import json
         results = {}
         accuracy_result = {}
-        # 调用相应的评估函数
-        if args.dataset in TEXT_DATASETS:
-            print(f"执行文本多选题评估（手动模式）")
-            valid_ratio, score = evaluate_mcq_manual(
-                user_id=args.user_id,
-                dataset_name=args.dataset,
-                model_name=args.model_name,
-                business_id=args.business_id,
-                question_limitation=args.question_limitation,
-                response_url=args.response_url
-            )
-            results[args.dataset] = {
-                "valid_ratio": valid_ratio,
-                "score": score
-            }
-            accuracy_result[args.dataset] = score
-        elif args.dataset in MULTIMODAL_DATASETS:
-            print(f"执行图像多选题评估（手动模式）")
-            valid_ratio, score = evaluate_imagemcq_manual(
-                user_id=args.user_id,
-                dataset_name=args.dataset,
-                model_name=args.model_name,
-                business_id=args.business_id,
-                question_limitation=args.question_limitation,
-                response_url=args.response_url
-            )
-            results[args.dataset] = {
-                "valid_ratio": valid_ratio,
-                "score": score
-            }
-            accuracy_result[args.dataset] = score
-        elif args.dataset in LLMJUDGE_DATASETS:
-            print(f"执行LLMJudge评估（手动模式）")
-            valid_ratio, score = evaluate_llmjudge_manual(
-                user_id=args.user_id,
-                dataset_name=args.dataset,
-                model_name=args.model_name,
-                business_id=args.business_id,
-                question_limitation=args.question_limitation,
-                response_url=args.response_url
-            )
-            results[args.dataset] = {
-                "valid_ratio": valid_ratio,
-                "score": score
-            }
-            accuracy_result[args.dataset] = score
-        else:
-            print(f"不支持的数据集: {args.dataset}")
-            return
+        print("手动模式暂不支持，请使用automatic模式")
+        return
         
         # 输出结果
         print(f"评测结果: {json.dumps(results, indent=2, ensure_ascii=False)}")
