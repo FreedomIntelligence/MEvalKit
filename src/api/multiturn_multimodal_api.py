@@ -43,11 +43,9 @@ class ConversationAPI:
         self.conversation_id = conversation_id or "default"
         self.enable_history = enable_history
         self.conversation_history: Dict[str, List[Dict[str, Any]]] = {}
+        self.model_key = model_key if model_key is not None and model_key != "" else os.environ['OPENAI_API_KEY']
+        self.api_base = api_base if api_base is not None and api_base != "" else os.environ['OPENAI_API_BASE']
         
-        if model_key and model_key.strip():
-            os.environ['OPENAI_API_KEY'] = model_key
-        if api_base and api_base.strip():
-            os.environ['OPENAI_API_BASE'] = api_base
 
     def handle_image_url(self):
         """处理图像输入，支持多种格式"""
@@ -125,8 +123,8 @@ class ConversationAPI:
         while retry_count < max_retries:
             try:
                 load_dotenv()
-                url = os.environ['OPENAI_API_BASE'] + "/chat/completions"
-                
+                url = self.api_base + "/chat/completions"
+                print(url)
                 session = requests.Session()
                 session.proxies = {'http': None, 'https': None}
                 session.trust_env = False
@@ -177,16 +175,16 @@ class ConversationAPI:
                 }
                 
                 headers = {
-                    "Authorization": f"Bearer {os.environ['OPENAI_API_KEY']}",
+                    "Authorization": f"Bearer {self.model_key}",
                     "Content-Type": "application/json"
                 }
                 
                 response = session.post(url, headers=headers, json=payload, timeout=3000)
-                #print(response.json())
+                print(response.json())
                 
                 if response.status_code == 200:
                     response_data = response.json()
-                    #print(response_data)
+                    print(response_data)
                     if 'error' in response_data:
                         print("Error: ", response_data)
                         return "Neglected"
@@ -195,6 +193,7 @@ class ConversationAPI:
                         #print("Assistant Message: ", assistant_message)
                         if assistant_message == None:
                             print("Assistant Message is None: ", response_data)
+                            return "Neglected"
                         if self.enable_history:
                             # 多轮对话：保存助手回复到历史记录
                             self.conversation_history[self.conversation_id].append({

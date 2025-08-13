@@ -376,109 +376,110 @@ def scoring(generate_response_list: List[List[str]], reference_answer_list: List
         return score
     
     elif scoring_criteria == "llmjudge":
-        # 从 kwargs 获取 LLM Judge 需要的参数
-        language = kwargs.get('language', 'en')
-        background = kwargs.get('background')
-        question_list = kwargs.get('question_list', [])
-        max_score = kwargs.get('max_score', 10)
-        judge_prompt = kwargs.get('judge_prompt')
-        judge_prompt_with_reference = kwargs.get('judge_prompt_with_reference')
+        pass
+    #     # 从 kwargs 获取 LLM Judge 需要的参数
+    #     language = kwargs.get('language', 'en')
+    #     background = kwargs.get('background')
+    #     question_list = kwargs.get('question_list', [])
+    #     max_score = kwargs.get('max_score', 10)
+    #     judge_prompt = kwargs.get('judge_prompt')
+    #     judge_prompt_with_reference = kwargs.get('judge_prompt_with_reference')
         
-        # LLM Judge评分逻辑 - 并行处理
-        def process_single_judge(args):
-            """处理单个评判任务"""
-            i, j, generate_response, reference_answers, question, system_judge_prompt, evaluate_prompt = args
-            evaluate_model = "gpt-4o"  # 默认使用 gpt-4o 作为评判模型
+    #     # LLM Judge评分逻辑 - 并行处理
+    #     def process_single_judge(args):
+    #         """处理单个评判任务"""
+    #         i, j, generate_response, reference_answers, question, system_judge_prompt, evaluate_prompt = args
+    #         evaluate_model = "gpt-4o"  # 默认使用 gpt-4o 作为评判模型
             
-            # 创建评判API
-            load_dotenv()
-            evaluate_chat = ConversationAPI(
-                model_name=evaluate_model,
-                system_prompt=system_judge_prompt,
-                user_prompt=evaluate_prompt,
-                temperature=0.7,
-                conversation_id=f"JudgeAgent_{i}_{j}",
-                model_key=os.getenv("MODEL_KEY"),
-                api_base=os.getenv("API_BASE")
-            )
+    #         # 创建评判API
+    #         load_dotenv()
+    #         evaluate_chat = ConversationAPI(
+    #             model_name=evaluate_model,
+    #             system_prompt=system_judge_prompt,
+    #             user_prompt=evaluate_prompt,
+    #             temperature=0.7,
+    #             conversation_id=f"JudgeAgent_{i}_{j}",
+    #             model_key=os.getenv("MODEL_KEY"),
+    #             api_base="https://api.huatuogpt.cn/v1"
+    #         )
             
-            try:
-                # 获取评判结果
-                evaluate_response = evaluate_chat.generate_response()
-                score = extract_scores(evaluate_response, max_score)
-                return score if score is not None and score > 0 else 0
-            except Exception as e:
-                return 0
+    #         try:
+    #             # 获取评判结果
+    #             evaluate_response = evaluate_chat.generate_response()
+    #             score = extract_scores(evaluate_response, max_score)
+    #             return score if score is not None and score > 0 else 0
+    #         except Exception as e:
+    #             return 0
         
-        # 准备并行任务
-        judge_tasks = []
-        for i, generate_responses in enumerate(generate_response_list):
-            if i >= len(reference_answer_list) if reference_answer_list else len(generate_response_list):
-                continue
+    #     # 准备并行任务
+    #     judge_tasks = []
+    #     for i, generate_responses in enumerate(generate_response_list):
+    #         if i >= len(reference_answer_list) if reference_answer_list else len(generate_response_list):
+    #             continue
                 
-            reference_answers = reference_answer_list[i] if reference_answer_list else None
+    #         reference_answers = reference_answer_list[i] if reference_answer_list else None
             
-            # 确保generate_responses是列表
-            if not isinstance(generate_responses, list):
-                generate_responses = [generate_responses]
+    #         # 确保generate_responses是列表
+    #         if not isinstance(generate_responses, list):
+    #             generate_responses = [generate_responses]
                 
-            for j, generate_response in enumerate(generate_responses):
-                # 构建评判prompt
-                system_judge_prompt = DEFAULT_JUDGE_SYSTEM_PROMPT_WITH_GIVEN_ZH if language == "zh" else DEFAULT_JUDGE_SYSTEM_PROMPT_WITH_GIVEN_EN
+    #         for j, generate_response in enumerate(generate_responses):
+    #             # 构建评判prompt
+    #             system_judge_prompt = DEFAULT_JUDGE_SYSTEM_PROMPT_WITH_GIVEN_ZH if language == "zh" else DEFAULT_JUDGE_SYSTEM_PROMPT_WITH_GIVEN_EN
                 
-                # 添加背景信息
-                if background:
-                    if language == "zh":
-                        system_judge_prompt = system_judge_prompt + f"\n任务背景：{background}"
-                    else:
-                        system_judge_prompt = system_judge_prompt + f"\nBackground: {background}"
+    #             # 添加背景信息
+    #             if background:
+    #                 if language == "zh":
+    #                     system_judge_prompt = system_judge_prompt + f"\n任务背景：{background}"
+    #                 else:
+    #                     system_judge_prompt = system_judge_prompt + f"\nBackground: {background}"
                 
-                # 获取问题文本
-                if i < len(question_list):
-                    question = question_list[i][j] if isinstance(question_list[i], list) and j < len(question_list[i]) else question_list[i] if isinstance(question_list[i], str) else ""
-                else:
-                    question = ""
+    #             # 获取问题文本
+    #             if i < len(question_list):
+    #                 question = question_list[i][j] if isinstance(question_list[i], list) and j < len(question_list[i]) else question_list[i] if isinstance(question_list[i], str) else ""
+    #             else:
+    #                 question = ""
                 
-                # 选择合适的评判prompt模板
-                if reference_answers and judge_prompt_with_reference:
-                    system_judge_prompt = system_judge_prompt + f"\n{judge_prompt_with_reference}"
-                    # 构建包含参考答案的评判内容
-                    ref_answer = reference_answers[j] if isinstance(reference_answers, list) and j < len(reference_answers) else reference_answers
-                    if language == "zh":
-                        evaluate_prompt = f"问题：{question}\n\n模型回答：{generate_response}\n\n参考答案：{ref_answer}"
-                    else:
-                        evaluate_prompt = f"Question: {question}\n\nModel Response: {generate_response}\n\nReference Answer: {ref_answer}"
-                elif judge_prompt:
-                    system_judge_prompt = system_judge_prompt + f"\n{judge_prompt}"
-                    # 构建不含参考答案的评判内容
-                    if language == "zh":
-                        evaluate_prompt = f"问题：{question}\n\n模型回答：{generate_response}"
-                    else:
-                        evaluate_prompt = f"Question: {question}\n\nModel Response: {generate_response}"
-                else:
-                    # 使用默认评判方式
-                    if language == "zh":
-                        evaluate_prompt = f"问题：{question}\n\n模型回答：{generate_response}"
-                    else:
-                        evaluate_prompt = f"Question: {question}\n\nModel Response: {generate_response}"
+    #             # 选择合适的评判prompt模板
+    #             if reference_answers and judge_prompt_with_reference:
+    #                 system_judge_prompt = system_judge_prompt + f"\n{judge_prompt_with_reference}"
+    #                 # 构建包含参考答案的评判内容
+    #                 ref_answer = reference_answers[j] if isinstance(reference_answers, list) and j < len(reference_answers) else reference_answers
+    #                 if language == "zh":
+    #                     evaluate_prompt = f"问题：{question}\n\n模型回答：{generate_response}\n\n参考答案：{ref_answer}"
+    #                 else:
+    #                     evaluate_prompt = f"Question: {question}\n\nModel Response: {generate_response}\n\nReference Answer: {ref_answer}"
+    #             elif judge_prompt:
+    #                 system_judge_prompt = system_judge_prompt + f"\n{judge_prompt}"
+    #                 # 构建不含参考答案的评判内容
+    #                 if language == "zh":
+    #                     evaluate_prompt = f"问题：{question}\n\n模型回答：{generate_response}"
+    #                 else:
+    #                     evaluate_prompt = f"Question: {question}\n\nModel Response: {generate_response}"
+    #             else:
+    #                 # 使用默认评判方式
+    #                 if language == "zh":
+    #                     evaluate_prompt = f"问题：{question}\n\n模型回答：{generate_response}"
+    #                 else:
+    #                     evaluate_prompt = f"Question: {question}\n\nModel Response: {generate_response}"
                 
-                judge_tasks.append((i, j, generate_response, reference_answers, question, system_judge_prompt, evaluate_prompt))
+    #             judge_tasks.append((i, j, generate_response, reference_answers, question, system_judge_prompt, evaluate_prompt))
         
-        # 并行执行评判任务
-        total_scores = 0
-        total_pairs = len(judge_tasks)
+    #     # 并行执行评判任务
+    #     total_scores = 0
+    #     total_pairs = len(judge_tasks)
         
-        if total_pairs > 0:
-            with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
-                futures = [executor.submit(process_single_judge, task) for task in judge_tasks]
-                for future in tqdm(concurrent.futures.as_completed(futures), total=len(futures), desc="LLM Judge评分中"):
-                    score = future.result()
-                    total_scores += score
+    #     if total_pairs > 0:
+    #         with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
+    #             futures = [executor.submit(process_single_judge, task) for task in judge_tasks]
+    #             for future in tqdm(concurrent.futures.as_completed(futures), total=len(futures), desc="LLM Judge评分中"):
+    #                 score = future.result()
+    #                 total_scores += score
         
-        # 计算平均分并转换为百分制
-        raw_score = (total_scores / total_pairs) if total_pairs > 0 else 0
-        score = (raw_score / max_score) * 100 if max_score > 0 else 0
-        return score
+    #     # 计算平均分并转换为百分制
+    #     raw_score = (total_scores / total_pairs) if total_pairs > 0 else 0
+    #     score = (raw_score / max_score) * 100 if max_score > 0 else 0
+    #     return score
     
     else:
         raise ValueError(f"Unsupported scoring criteria: {scoring_criteria}")
@@ -635,7 +636,7 @@ def process_question(args):
                 temperature=0.7,
                 conversation_id=f"JudgeAgent_{question_idx_inner}_{i}",
                 model_key=model_key,
-                api_base=api_base
+                api_base="https://api.huatuogpt.cn/v1"
             )
             
             try:
@@ -695,7 +696,7 @@ def process_question(args):
         scores = []
         
         if judge_tasks:
-            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:  # 降低并发数到1
+            with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:  # 降低并发数到1
                 futures = [executor.submit(process_single_judge_with_response, task) for task in judge_tasks]
                 for idx, future in enumerate(concurrent.futures.as_completed(futures)):
                     score, judge_response = future.result()
@@ -815,24 +816,15 @@ def evaluate_qa_automatic(
             if "Neglected" not in generate_responses:
                 valid_questions += 1
             total_questions += 1
-    if total_questions > 0 and valid_questions / total_questions >= 0.95:
-        # 构建reference_answer_list用于scoring函数
+    if total_questions > 0 and valid_questions / total_questions >= 0.9 and scoring_criteria != "llmjudge":
+
+        构建reference_answer_list用于scoring函数
         reference_answer_list = []
         for result in existing_results:
             if result['reference_answer'] != "None":
                 reference_answer_list.append(result['reference_answer'])
         
-        if reference_answer_list:
-            # 构建问题列表用于LLM Judge
-            question_list_for_scoring = []
-            if scoring_criteria == "llmjudge":
-                for result in existing_results:
-                    if result['generate_response'] != "Neglected":
-                        question_idx = result['id']
-                        if question_idx < len(questions['data']):
-                            question_list_for_scoring.append(questions['data'][question_idx])
-                        else:
-                            question_list_for_scoring.append("")
+
             
             score = scoring(
                 generate_response_list, 
@@ -845,8 +837,8 @@ def evaluate_qa_automatic(
                 judge_prompt=judge_prompt,
                 judge_prompt_with_reference=judge_prompt_with_reference
             )
-        else:
-            score = 0
+            print("score:", score)
+
     else:
         score = 0
     

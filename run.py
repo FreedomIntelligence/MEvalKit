@@ -68,20 +68,20 @@ def parse_automatic_args(unknown_args):
     parser = argparse.ArgumentParser()
     parser.add_argument("--user_id", type=str, required=False, default="test",
                         help="用户id")
-    parser.add_argument("--dataset", type=str, required=False, default="GPQA",
+    parser.add_argument("--dataset", type=str, required=False, default="MT-Bench",
                         help="数据集名称，例如MMLU、GPQA等")
     # parser.add_argument("--model_type", type=str, required=False, default="default",
     #                     help="模型类型，例如vllm、openai等")
-    parser.add_argument("--model_name", type=str, required=False, default="gpt-oss-20b",
+    parser.add_argument("--model_name", type=str, required=False, default="Baichuan-M2-32B",
                         help="准备进行评测的模型名称")
-    parser.add_argument("--api_base", type=str, required=False, default="http://aistation.sribd.cn:30001/v1",
+    parser.add_argument("--api_base", type=str, required=False, default="http://aistation.sribd.cn:30007/v1",
                         help="API接口地址")
     parser.add_argument("--model_key", type=str, required=False, default="",
                         help="模型key")
     parser.add_argument("--business_id", type=str, required=False, default=None,
                         help="业务id，如果不提供则自动生成新的business_id")
     # parser.add_argument("--evaluate_mode", type=str, required=False, default="start_from_beginning")
-    parser.add_argument("--question_limitation", type=int, required=False, default=100,
+    parser.add_argument("--question_limitation", type=int, required=False, default=10,
                         help="评测的问题数量")
 
     return parser.parse_args(unknown_args)
@@ -163,7 +163,7 @@ def main():
                 api_base=args.api_base,
                 business_id=args.business_id,
                 question_limitation=args.question_limitation,
-                max_workers=32
+                max_workers=64
             )
             results[args.dataset] = {
                 "valid_ratio": valid_ratio,
