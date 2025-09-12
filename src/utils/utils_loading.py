@@ -125,10 +125,14 @@ datasets.builder.has_sufficient_disk_space = lambda needed_bytes, directory='.':
 
 def load_dataset_compile(dataset_info, loading_way):
     dataset_paths = dataset_info['path']
+    
+    # 修正loading_way，jsonl实际使用json格式加载
+    actual_loading_way = "json" if loading_way == "jsonl" else loading_way
+    
     if isinstance(dataset_paths, str):
         data_files = os.path.normpath(dataset_paths)
         dataset = load_dataset(
-            loading_way,
+            actual_loading_way,
             data_files={'test': data_files}
         )['test']
     else:
@@ -136,7 +140,7 @@ def load_dataset_compile(dataset_info, loading_way):
         for dataset_path in dataset_paths:
             data_files = os.path.normpath(dataset_path)
             dataset = load_dataset(
-                loading_way,
+                actual_loading_way,
                 data_files={'test': data_files}
             )['test']
             dataset_list.append(dataset)

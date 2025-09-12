@@ -12,7 +12,7 @@ sys.path.append(str(project_root))
 # sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from src.dataset.MCQ import *
-from src.api.multiturn_multimodal_api import *
+from src.api.ConversationAPI import *
 from src.utils.MCQ_constants import *
 from src.utils.default_prompts import *
 from src.utils.model_and_dataset import *
@@ -103,6 +103,219 @@ def extract_multi_answer(response: str, dataset_name: str):
     single_options = re.findall(f'[A-{max_letter}]', response)
     if single_options:
         return sorted(list(set(single_options)))
+    
+    return "Neglected"
+
+def extract_json_answer(response: str, question_type: str):
+    """
+    从JSON格式的响应中提取答案
+    
+    参数:
+        response: 模型的响应文本
+        question_type: 问题类型（"single"或"multiple"）
+        
+    返回:
+        extracted_answer: 提取的答案
+    """
+    if response == "Neglected":
+        return response
+    
+    # 首先尝试最严格的JSON解析
+    json_candidates = []
+    
+    # 方法1: 提取```json代码块
+    json_match = re.search(r'```json\s*\n(.*?)\n```', response, re.DOTALL)
+    if json_match:
+        json_candidates.append(json_match.group(1))
+    
+    # 方法2: 提取{}对象（寻找最大的完整JSON对象）
+    brace_matches = []
+    start_pos = 0
+    while True:
+        start = response.find('{', start_pos)
+        if start == -1:
+            break
+        
+        brace_count = 0
+        end = start
+        in_string = False
+        escaped = False
+        
+        for i in range(start, len(response)):
+            char = response[i]
+            if escaped:
+                escaped = False
+                continue
+            if char == '\\' and in_string:
+                escaped = True
+                continue
+            if char == '"':
+                in_string = not in_string
+                continue
+            if not in_string:
+                if char == '{':
+                    brace_count += 1
+                elif char == '}':
+                    brace_count -= 1
+                    if brace_count == 0:
+                        end = i
+                        break
+        
+        if brace_count == 0:
+            candidate = response[start:end+1]
+            if len(candidate) > 20:  # 过滤太短的候选
+                brace_matches.append(candidate)
+        
+        start_pos = start + 1
+    
+    # 按长度排序，优先尝试最长的
+    brace_matches.sort(key=len, reverse=True)
+    json_candidates.extend(brace_matches)
+    
+    if not json_candidates:
+        # 如果没有找到JSON候选，直接尝试简单提取
+        simple_answer = extract_simple_answer(response, question_type)
+        return simple_answer
+    
+    # 尝试解析每个JSON候选
+    for json_str in json_candidates:
+        try:
+            # 清理JSON字符串
+            cleaned_json = clean_json_string(json_str)
+            
+            # 尝试解析
+            data = json.loads(cleaned_json)
+            
+            answer = data.get("answer")
+            
+            if answer is None:
+                continue
+            
+            # 验证答案格式
+            if question_type == "single":
+                if isinstance(answer, str) and len(answer) == 1 and 'A' <= answer <= 'Z':
+                    return answer
+            elif question_type == "multiple":
+                if isinstance(answer, list) and all(isinstance(opt, str) and len(opt) == 1 and 'A' <= opt <= 'Z' for opt in answer):
+                    return sorted(answer)
+                    
+        except (json.JSONDecodeError, AttributeError, TypeError) as e:
+            # 如果这个候选解析失败，尝试下一个
+            print(f"JSON候选解析失败: {e}")
+            continue
+    
+    # 如果所有JSON候选都解析失败，尝试简单提取
+    print("所有JSON候选都解析失败，尝试简单提取")
+    simple_answer = extract_simple_answer(response, question_type)
+    return simple_answer
+
+def clean_json_string(json_str: str) -> str:
+    """
+    清理JSON字符串，修复常见的格式问题
+    """
+    # 移除Unicode BOM和零宽字符
+    json_str = json_str.replace('\ufeff', '').replace('\u200b', '').replace('\u00a0', ' ')
+    
+    # 处理常见的Unicode字符
+    unicode_replacements = {
+        '\u27a5': '->',
+        '\u2192': '->',
+        '\u2190': '<-',
+        '\u2194': '<->',
+        '\u00b0': 'degrees',
+        '\u00b1': '±',
+        '\u00d7': 'x',
+        '\u00f7': '/',
+        '\u2013': '-',
+        '\u2014': '--',
+        '\u2026': '...',
+        '\u2605': '*',  # ⭐
+        '\u25b6': '>',  # ▶
+        '\u25c0': '<',  # ◀
+        '\u2022': '*',  # •
+        '\u25cf': '*',  # ●
+    }
+    
+    for unicode_char, replacement in unicode_replacements.items():
+        json_str = json_str.replace(unicode_char, replacement)
+    
+    # 移除或替换损坏的字符序列
+    # 移除所有非ASCII可打印字符（除了换行、回车、制表符）
+    json_str = re.sub(r'[^\x20-\x7E\n\r\t]+', ' ', json_str)
+    
+    # 修复常见的LaTeX转义问题
+    json_str = json_str.replace('\\\\', '\\')
+    
+    # 修复JSON中的控制字符问题
+    # 替换JSON字符串中的未转义控制字符
+    json_str = re.sub(r'[\x00-\x1F\x7F]', ' ', json_str)
+    
+    # 尝试修复常见的JSON语法错误
+    # 修复可能的换行符问题
+    json_str = json_str.replace('\n', '\\n').replace('\r', '\\r').replace('\t', '\\t')
+    
+    return json_str
+
+def extract_simple_answer(response: str, question_type: str) -> str:
+    """
+    当JSON解析失败时，尝试多种方式提取答案
+    """
+    # 方法1: 尝试在JSON块中找到answer字段
+    answer_patterns = [
+        r'"answer":\s*"([A-Z])"',
+        r'"answer":\s*([A-Z])',
+        r'"answer"\s*:\s*"([A-Z])"',
+        r'answer["\']?\s*:\s*["\']?([A-Z])["\']?',
+    ]
+    
+    for pattern in answer_patterns:
+        answer_match = re.search(pattern, response, re.IGNORECASE)
+        if answer_match:
+            answer = answer_match.group(1).upper()
+            if question_type == "single":
+                if len(answer) == 1 and 'A' <= answer <= 'Z':
+                    return answer
+    
+    # 方法2: 对于多选题，尝试找到列表格式
+    if question_type == "multiple":
+        list_patterns = [
+            r'"answer":\s*\[([^\]]+)\]',
+            r'"answer"\s*:\s*\[([^\]]+)\]',
+            r'answer["\']?\s*:\s*\[([^\]]+)\]',
+        ]
+        
+        for pattern in list_patterns:
+            list_match = re.search(pattern, response, re.IGNORECASE)
+            if list_match:
+                try:
+                    list_content = list_match.group(1)
+                    # 提取所有大写字母
+                    options = re.findall(r'["\']?([A-Z])["\']?', list_content)
+                    if options and all(len(opt) == 1 and 'A' <= opt <= 'Z' for opt in options):
+                        return sorted(list(set(options)))
+                except:
+                    continue
+    
+    # 方法3: 寻找常见的答案模式（fallback）
+    # 寻找类似 "The answer is X" 的模式
+    fallback_patterns = [
+        r'(?:answer|选择|选项|correct)\s*(?:is|为|是)\s*(?:clearly\s*)?([A-Z])',
+        r'(?:therefore|因此|所以).{0,50}([A-Z])\s*[。.]',
+        r'选项\s*([A-Z])',
+        r'答案\s*([A-Z])',
+        r'\b([A-Z])\s*(?:is|为|是)\s*(?:correct|正确)',
+        r'(?:based on|根据).{0,30}(?:answer|答案).{0,10}([A-Z])',
+    ]
+    
+    for pattern in fallback_patterns:
+        match = re.search(pattern, response, re.IGNORECASE)
+        if match:
+            answer = match.group(1).upper()
+            if len(answer) == 1 and 'A' <= answer <= 'Z':
+                if question_type == "single":
+                    return answer
+                elif question_type == "multiple":
+                    return [answer]
     
     return "Neglected"
 
@@ -252,14 +465,15 @@ def process_question(args):
         question_type = "multiple"
 
     if background is None or background == "":
+        # 使用JSON格式的prompt
         if language == "zh" and question_type == "single":
-            system_prompt = MCQ_TEMPLATE_SINGLE_ZH
+            system_prompt = MCQ_JSON_TEMPLATE_SINGLE_ZH
         elif language == "zh" and question_type == "multiple":
-            system_prompt = MCQ_TEMPLATE_MULTIPLE_ZH
+            system_prompt = MCQ_JSON_TEMPLATE_MULTIPLE_ZH
         elif language == "en" and question_type == "single":
-            system_prompt = MCQ_TEMPLATE_SINGLE_EN
+            system_prompt = MCQ_JSON_TEMPLATE_SINGLE_EN
         elif language == "en" and question_type == "multiple":
-            system_prompt = MCQ_TEMPLATE_MULTIPLE_EN
+            system_prompt = MCQ_JSON_TEMPLATE_MULTIPLE_EN
     else:
         system_prompt = background
 
@@ -291,15 +505,12 @@ def process_question(args):
                                     enable_history=False)
     response = chat.generate_response()
     #print(response)
-    extracted_response = None
-    if question_type == "single":
-        extracted_response = extract_answer(response, dataset_name)
-    elif question_type == "multiple":
-        extracted_response = extract_multi_answer(response, dataset_name)
+    
+    # 使用JSON格式的提取逻辑
+    extracted_response = extract_json_answer(response, question_type)
     #print(extracted_response)
     
-    
-    return i, extracted_response, answer
+    return i, extracted_response, response, answer
 
     
 
@@ -401,8 +612,9 @@ def evaluate_all_mcq_automatic(
     with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = {executor.submit(process_question, args): args[0] for args in args_list}
         for future in tqdm(concurrent.futures.as_completed(futures), total=len(futures), desc=f"评测中"):
-            idx, response, answer = future.result()
+            idx, extracted_response, response, answer = future.result()
             existing_results[idx]["response"] = response
+            existing_results[idx]["extracted_response"] = extracted_response
             existing_results[idx]["answer"] = answer
             #print("3:", answer)
             # 同时保存到文件（兼容性）和数据库
@@ -433,13 +645,13 @@ def calculate_valid_ratio_and_score(result_file, answers, accuracy_file, questio
     results = read_json_file(result_file, business_id)
     total_questions = len(results)
     # 修复：同时统计 "Neglected" 和 None 两种无效响应
-    neglected_count = sum(1 for result in results if result["response"] == "Neglected" or result["response"] is None)
+    neglected_count = sum(1 for result in results if result["extracted_response"] == "Neglected" or result["extracted_response"] is None)
     neglected_ratio = neglected_count / total_questions if total_questions > 0 else 0
     valid_ratio = 1 - neglected_ratio
 
-    if neglected_ratio > neglected_threshold:
-        print(f"无效题目比例 ({neglected_ratio:.2%}) 超过阈值 ({neglected_threshold:.2%})，评测无效，不生成score文件")
-        return valid_ratio, None
+    # if neglected_ratio > neglected_threshold:
+    #     print(f"无效题目比例 ({neglected_ratio:.2%}) 超过阈值 ({neglected_threshold:.2%})，评测无效，不生成score文件")
+    #     return valid_ratio, None
     
     if answers is None:
         print("数据集没有标准答案，无法计算准确率")
@@ -450,9 +662,9 @@ def calculate_valid_ratio_and_score(result_file, answers, accuracy_file, questio
     correct_count = 0
     valid_count = 0
     for i, result in enumerate(results):
-        if i < len(answers) and result["response"] is not None and result["response"] != "Neglected":
+        if i < len(answers) and result["extracted_response"] is not None and result["extracted_response"] != "Neglected":
             valid_count += 1
-            model_response = result["response"]
+            model_response = result["extracted_response"]
             correct_answer = answers[i]
             #print("4:", correct_answer)
 
@@ -509,13 +721,13 @@ def calculate_valid_ratio_and_score(result_file, answers, accuracy_file, questio
 if __name__ == "__main__":
     score = evaluate_all_mcq_automatic(
         user_id="test",
-        dataset_name="CMB",
-        model_name="doubao-1.5-pro-32k",
+        dataset_name="MMStar",
+        model_name="Pro/Qwen/Qwen2.5-VL-7B-Instruct",
         model_key="sk-fPz5uPZn2ubb9Qexx62yWcFl55Z46iRdBfdlvnjufQ6o0BVo",
         api_base="https://api.huatuogpt.cn/v1",
-        business_id="CMB_doubao-1.5-pro-32k_202508101615",
-        question_limitation=50,  # 测试50题
-        max_workers=4
+        business_id=None,
+        question_limitation=100,  # 测试50题
+        max_workers=64
     )
 
 

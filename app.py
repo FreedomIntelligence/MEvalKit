@@ -33,7 +33,8 @@ sys.path.insert(0, current_dir)
 # 导入评测模块
 from src.utils.model_and_dataset import *
 from evaluation.MCQ_eval import evaluate_all_mcq_automatic
-from evaluation.QA_eval import evaluate_qa_automatic
+from evaluation.QA_eval import QA_evaluator
+from evaluation.Agent_eval import Agent_evaluator
 
 # 导入数据库模块 
 try:
@@ -121,7 +122,7 @@ leaderboard_data = {}
 last_leaderboard_update = 0
 
 # 所有可用数据集
-ALL_DATASETS = TEXT_DATASETS + MULTIMODAL_DATASETS + LLMJUDGE_DATASETS
+ALL_DATASETS = TEXT_DATASETS + MULTIMODAL_DATASETS + LLMJUDGE_DATASETS + ["IOR-Dynamic"]
 
 # 默认用户
 DEFAULT_USER = "test"
@@ -618,6 +619,15 @@ def api_overall_rankings():
             'enum': ['automatic', 'manual']
         },
         {
+            'name': 'evaluation_type',
+            'in': 'formData',
+            'type': 'string',
+            'required': False,
+            'default': 'auto',
+            'description': '评测类型：auto（自动检测）、MCQ（多选题）、QA（问答题）、Agent（对话）',
+            'enum': ['auto', 'MCQ', 'QA', 'Agent']
+        },
+        {
             'name': 'dataset',
             'in': 'formData',
             'type': 'string',
@@ -630,6 +640,28 @@ def api_overall_rankings():
             'type': 'string',
             'required': True,
             'description': '模型名称'
+        },
+        {
+            'name': 'agent_1_model',
+            'in': 'formData',
+            'type': 'string',
+            'required': False,
+            'default': 'gpt-4o',
+            'description': 'Agent_1模型（仅Agent评测，默认gpt-4o）'
+        },
+        {
+            'name': 'agent_2_model',
+            'in': 'formData',
+            'type': 'string',
+            'required': False,
+            'description': 'Agent_2模型（仅Agent评测，默认使用model_name）'
+        },
+        {
+            'name': 'response_agent_model',
+            'in': 'formData',
+            'type': 'string',
+            'required': False,
+            'description': 'Response Agent模型（仅Agent评测，默认使用model_name）'
         },
         {
             'name': 'api_base',
@@ -652,6 +684,14 @@ def api_overall_rankings():
             'required': False,
             'default': 100,
             'description': '评测的问题数量，0或不填表示评测全部题目'
+        },
+        {
+            'name': 'max_workers',
+            'in': 'formData',
+            'type': 'integer',
+            'required': False,
+            'default': 32,
+            'description': '并行工作线程数'
         },
         {
             'name': 'response_url',
@@ -703,11 +743,16 @@ def api_overall_rankings():
 def run_evaluation():
     """创建并运行评测任务"""
     evaluation_mode = request.form.get('evaluation_mode')
+    evaluation_type = request.form.get('evaluation_type', 'auto')
     dataset = request.form.get('dataset')
     model_name = request.form.get('model_name', '')
+    agent_1_model = request.form.get('agent_1_model', 'gpt-4o')
+    agent_2_model = request.form.get('agent_2_model', '')
+    response_agent_model = request.form.get('response_agent_model', '')
     model_key = request.form.get('model_key', '')
     api_base = request.form.get('api_base', '')
     question_limitation = request.form.get('question_limitation', '100')
+    max_workers = request.form.get('max_workers', '32')
     user_id = request.form.get('user_id', DEFAULT_USER)
     response_url = request.form.get('response_url', '')
     
@@ -744,6 +789,16 @@ def run_evaluation():
     except (ValueError, TypeError):
         question_limit = None
     
+    # 处理并行线程数
+    workers = 32
+    try:
+        if max_workers:
+            workers = int(max_workers)
+            if workers <= 0:
+                workers = 32
+    except (ValueError, TypeError):
+        workers = 32
+    
     # 生成business_id
     if evaluation_mode == "automatic":
         business_id = generate_business_id(dataset, model_name)
@@ -752,17 +807,28 @@ def run_evaluation():
     
     task_id = business_id
     
-    # 确定评估类型
-    if dataset in TEXT_DATASETS:
-        eval_type = "text"
-    elif dataset in MULTIMODAL_DATASETS:
-        eval_type = "multimodal"
-    elif dataset in LLMJUDGE_DATASETS:
-        eval_type = "llmjudge"
+    # 自动检测或使用指定的评估类型
+    if evaluation_type == "auto":
+        if dataset in TEXT_DATASETS or dataset in MULTIMODAL_DATASETS:
+            eval_type = "MCQ"
+        elif dataset in LLMJUDGE_DATASETS:
+            eval_type = "QA"
+        elif dataset in ["IOR-Dynamic"]:
+            eval_type = "Agent"
+        else:
+            return jsonify({
+                "result": False,
+                "msg": f"无法自动检测数据集类型: {dataset}，请手动指定evaluation_type参数",
+                "data": None
+            }), 400
     else:
+        eval_type = evaluation_type
+    
+    # 验证评估类型
+    if eval_type not in ["MCQ", "QA", "Agent"]:
         return jsonify({
             "result": False,
-            "msg": f"不支持的数据集类型: {dataset}",
+            "msg": f"不支持的评估类型: {eval_type}",
             "data": None
         }), 400
     
@@ -774,19 +840,24 @@ def run_evaluation():
         "model_key": model_key,
         "api_base": api_base,
         "evaluation_mode": evaluation_mode,
+        "evaluation_type": eval_type,
         "business_id": business_id,
-        "eval_type": eval_type,
+        "eval_type": eval_type,  # 保持兼容性
         "status": "pending",
         "created_at": time.time(),
         "progress": 0,
         "total_questions": 0,
         "completed_questions": 0,
         "question_limit": question_limit,
+        "max_workers": workers,
         "is_evaluation_complete": False,
         "error_message": None,
         "error_details": None,
         "user_id": user_id,
-        "response_url": response_url
+        "response_url": response_url,
+        "agent_1_model": agent_1_model,
+        "agent_2_model": agent_2_model or model_name,
+        "response_agent_model": response_agent_model or model_name
     }
 
     def run_task():
@@ -794,14 +865,23 @@ def run_evaluation():
             # 构建命令
             cmd = ["python", "run.py", 
                 "--evaluation_mode", evaluation_mode,
+                "--evaluation_type", eval_type,
                 "--dataset", dataset, 
                 "--business_id", business_id,
                 "--user_id", user_id,
-                "--question_limitation", str(question_limit) if question_limit else "100"]
+                "--question_limitation", str(question_limit) if question_limit else "100",
+                "--max_workers", str(workers)]
             
             # 添加模式特定参数
             if evaluation_mode == "automatic":
                 cmd.extend(["--model_name", model_name])
+                
+                # Agent评测特定参数
+                if eval_type == "Agent":
+                    cmd.extend(["--agent_1_model", agent_1_model])
+                    cmd.extend(["--agent_2_model", agent_2_model or model_name])
+                    cmd.extend(["--response_agent_model", response_agent_model or model_name])
+                
                 if api_base:
                     cmd.extend(["--api_base", api_base])
                 if model_key:

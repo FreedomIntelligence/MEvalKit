@@ -23,15 +23,10 @@ MT-Bench:
       - data/mt-bench/question.jsonl
     key: 
       - reference
-    prompt_template: "Reference Answer: {reference_answer}"
+    prompt_template: null
+  
+  reference: null
 
-  judge_prompt:
-    loading_way: txt
-    path: data/mt-bench/scoring_criteria_without_reference.txt
-
-  judge_prompt_with_reference:
-    loading_way: txt
-    path: data/mt-bench/scoring_criteria_with_reference.txt
 
 
 MedEthicsMatrixCase:
@@ -39,7 +34,10 @@ MedEthicsMatrixCase:
 
   max_score: 5
 
-  background: null
+  background:
+    loading_way: content
+    path: |
+      你是一个医疗伦理方面的专家。请分析
 
   image: null
 
@@ -61,16 +59,114 @@ MedEthicsMatrixCase:
 
   reference_answer: null
 
-  scoring_criteria: llmjudge
-
-  judge_prompt:
-    loading_way: txt
-    path: data/MedEthicsMatrixCase/scoring_criteria.txt
-
-  judge_prompt_with_reference: null
+  reference: null
 
 
 
 
+HealthBench:
+  language: en
+
+  max_score: 100
+
+  background:
+    loading_way: content
+    path: "You are a helpful medical assistant. Provide accurate, safe, and appropriate responses to health-related questions. Always recommend consulting healthcare professionals for serious medical concerns."
+
+  case: null
+
+  image: null
+
+  question:
+    loading_way: jsonl
+    path:
+      - data/HealthBench/healthbench.jsonl
+    key:
+      - prompt
+    sub_key:
+      - content
+    prompt_template: "Prompt: {prompt}"
+
+  reference_answer: null
+
+  reference: null
 
 
+IOR-static:
+
+  language: zh
+
+  max_score: 100
+  
+  background: 
+    loading_way: content
+    path: |
+      你是医院分诊台的导诊医生，负责给病人推荐合适的科室。你负责的科室是：
+      ['肛肠外科', '甲状腺乳腺外科', '妇科',
+      '脊柱外科', '耳鼻喉科', '消化内科', '内分泌代谢科', '门诊产科',
+      '泌尿外科', '神经内科', '心血管内科', '创伤骨科与骨关节科',
+      '口腔科', '妇科内分泌科',
+      '消化内科、神经内科', '心胸外科', '眼科', '门诊妇科',
+      '风湿免疫科门诊', '呼吸内科', '皮肤科',
+      '运动医学与骨关节科', '神经外科', '肾内科', '儿科',
+      '肝胆胰脾疝外科', '烧伤整形科',
+      '普外科', '临床心理门诊', '血液内科', '感染性疾病科', '产科',
+      '康复医学科', '生殖医学科', '精神心理科',
+      '新生儿科', '肝胆外科', '肝胆胰疝外科', '普通外科',
+      '皮肤性病科', '血管外科', '疼痛科', '肝病门诊',
+      '风湿免疫科']。
+      根据到当前为止对话历史中病人的信息，你要从医院的分诊科室表中为他
+      推荐一个科室。
+      注意：
+      1.你只按要求对当前轮的对话做回应，绝不能补全后面好几轮的对话！！
+      2.你只能从分诊科室表中推荐一个最合适的科室，不要推荐多个科室。
+
+  
+  case: null
+      
+
+  image: null
+
+  question:
+    loading_way: csv
+    path: 
+      - data/IORBench/IOR-Static-processed.csv
+    key:
+      - 对话内容
+    prompt_template: |
+      ### 新的对话
+      {dialog_history}
+      推荐科室:
+  
+  reference_answer:
+    loading_way: csv
+    path:
+      - data/IORBench/IOR-Static-processed.csv
+    key:
+      - lable
+  
+  reference: null
+
+DotaBench:
+  language: zh
+  max_score: 100
+  background: null
+  case: null
+  image: null
+  question:
+    loading_way: parquet
+    path: 
+      - data/DotaBench/test-00000-of-00001-aaa7e18cf6644d00.parquet
+    key:
+      - turn_1_question
+      - turn_2_question
+      - turn_3_question
+    prompt_template: "Question: {question}"
+  reference_answer: null
+  reference:
+    loading_way: parquet
+    path: 
+      - data/DotaBench/test-00000-of-00001-aaa7e18cf6644d00.parquet
+    key:
+      - reference
+    

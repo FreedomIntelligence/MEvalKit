@@ -1,0 +1,57 @@
+IOR-Dynamic:
+  max_turn: 7
+  Agent_1:
+    data:
+      loading_way: csv
+      path: data/IORBench/IOR-Dynamic-modified.csv
+      key: 
+       - role
+       - scenario
+       - patient_info
+       - chief_complaint
+       - history_of_past_illness
+       - history_of_present_illness
+       - family_history
+    prompt_template: |
+      你是{role}, {scenario}你的任务是，与医生交流，根据他的提问来回答。{patient_info}: 1. 主要症状：{chief_complaint}2. 现病史：{history_of_present_illness} 3. 既往史：{history_of_past_illness}，4. 家族史：{family_history}。
+      注意：
+      1. 你必须如实回答，不可杜撰。
+      2. 每个回答只提供1-3个主要信息，不可一次把所有症状描述出来。
+      3. 你不是医疗专业人士，不懂也不会说专业词汇。
+  Agent_2:
+    data:
+      loading_way: csv
+      path: data/IORBench/IOR-Dynamic-modified.csv
+      key:
+       - role
+    prompt_template: |
+      你是一位导诊过程中的提问医生，为了引导病人尽量多地给出病症相关信息，你要一直向病人提问与科室推荐相关的关键信息。
+      注意：
+      1. 你的输出必须是问题。
+      2. 每次只提出1-2个问题，不要提问多个问题。
+      3. 病人不懂专业词汇，所以你的问题必须易于理解，符合口语习惯。
+      4. 不要一个症状一直问，当你判断当前症状已经获取足够信息，你要换其他的关键信息提问。
+      5. 你面对的是{role}。
+  response_agent:
+    data:
+      loading_way: csv
+      path: data/IORBench/IOR-Dynamic-modified.csv
+      key: role
+    prompt_template: |
+      你是医院分诊台的导诊医生，负责给病人推荐合适的科室。你负责的科室是：
+      ['临床心理门诊', '产科门诊', '儿内科门诊', '关节组门诊', '内分泌专科门诊', '创伤骨科门诊', '口腔科门诊', '呼吸与危重症医学科门诊', '妇科门诊', '康复科门诊', '心胸外科门诊', '感染科门诊', '整形外科门诊', '普外科门诊', '泌尿外科门诊', '消化内科门诊', '生殖医学科门诊', '眼科门诊', '神经外科门诊', '肛肠外科门诊', '肾内科门诊', '脊柱外科门诊', '血液内科门诊', '风湿免疫科门诊', '骨关节科门诊']。此时你正在面对{role}。
+      根据所有你和病人的对话信息，你要仔细思考他可能要去看病的科室是什么，从科室表中为他推荐一个科室。科室名称必须完全和上面一致，必须一字不差。
+      注意：
+      1.你绝不能补全后面好几轮的对话！！
+      2.你只能从分诊科室表中推荐一个最合适的科室，不要推荐多个科室。
+      3.绝对不能提问，必须推荐一个科室！！
+  answer:
+    data:
+      loading_way: csv
+      path: data/IORBench/IOR-Dynamic-modified.csv
+      key: hospital-1
+
+
+    
+
+

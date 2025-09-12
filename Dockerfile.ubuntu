@@ -1,0 +1,49 @@
+# MEvalKit 最小化Docker镜像
+FROM ubuntu:22.04
+
+# 设置非交互模式
+ENV DEBIAN_FRONTEND=noninteractive
+ENV TZ=Asia/Shanghai
+
+# 设置工作目录
+WORKDIR /app
+
+# 设置环境变量
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV FLASK_APP=app.py
+ENV FLASK_ENV=production
+
+# 安装Python和基础工具
+RUN apt-get update && apt-get install -y \
+    python3 \
+    python3-pip \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# 创建pip软链接
+RUN ln -s /usr/bin/python3 /usr/bin/python && \
+    ln -s /usr/bin/pip3 /usr/bin/pip
+
+# 复制requirements文件并安装Python依赖
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# 复制应用代码到容器
+COPY . .
+
+# 创建必要的目录结构
+RUN mkdir -p /app/results /app/logs /app/stress_test_results /app/data
+
+# 设置run.py为可执行文件
+RUN chmod +x run.py
+
+# 暴露Web服务端口
+EXPOSE 1984
+
+# 健康检查
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:1984/ || exit 1
+
+# 启动命令
+CMD ["python", "app.py"]

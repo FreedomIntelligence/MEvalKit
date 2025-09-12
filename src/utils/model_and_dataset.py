@@ -42,7 +42,7 @@ TEXT_DATASETS = ["MMLU", "GPQA", "CMB", "MedEthicsMatrixMCQ", "CMMLUMed"]
 MULTIMODAL_DATASETS = ["MMStar", "TestImageMCQ"]
 
 # LLMJudge型数据集（使用LLMJudge_eval模块评测）
-LLMJUDGE_DATASETS = ["MT-Bench", "MedEthicsMatrixCase"]
+LLMJUDGE_DATASETS = ["MT-Bench", "MedEthicsMatrixCase", "HealthBench"]
 
 # 模型分类定义
 

@@ -50,6 +50,32 @@ definitions:
   CaseConfig:
     $ref: '#/definitions/LoadingConfig'
 
+  RubricConfig:
+    type: object
+    properties:
+      loading_way:
+        type: string
+        enum: [json, csv, parquet, jsonl]
+      path:
+        oneOf:
+          - type: array
+            items:
+              type: string
+          - type: string
+      key:
+        oneOf:
+          - type: array
+            items:
+              type: string
+          - type: string
+      criterion_key:
+        type: string
+        # rubric标准/准则的字段名，默认为"criterion"
+      points_key:
+        type: string
+        # rubric分值的字段名，默认为"points"
+    required: [loading_way]
+
   ImageConfig:
     $ref: '#/definitions/LoadingConfig'
 
@@ -97,7 +123,7 @@ definitions:
       
       scoring_criteria:
         type: string
-        enum: [accuracy, f1-score, llmjudge, bleu, rouge]
+        enum: [accuracy, f1-score, llmjudge, bleu, rouge, rubric]
 
       judge_prompt:
         oneOf:
@@ -108,6 +134,11 @@ definitions:
         oneOf:
           - type: null
           - $ref: '#/definitions/TextLoadingConfig'
+
+      rubrics:
+        oneOf:
+          - type: null
+          - $ref: '#/definitions/LoadingConfig'
 
     required: [language, max_score, background, case, question, reference_answer, judge_prompt, judge_prompt_with_reference]
 
