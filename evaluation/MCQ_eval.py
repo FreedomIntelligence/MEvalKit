@@ -16,6 +16,7 @@ from src.api.ConversationAPI import *
 from src.utils.MCQ_constants import *
 from src.utils.default_prompts import *
 from src.utils.model_and_dataset import *
+from src.utils.config import config
 from tqdm import tqdm
 import concurrent.futures
 from typing import List, Tuple, Dict, Any, Literal
@@ -544,13 +545,25 @@ def evaluate_all_mcq_automatic(
     if question_limitation >= len(questions):
         question_limitation = len(questions)
     
+    # 调试信息 - 打印user_id的实际值
+    print(f"[DEBUG MCQ_eval] Received user_id: {repr(user_id)}")
+    
+    # 确保user_id不为None或空字符串
+    if user_id is None or user_id == "":
+        user_id = "test"
+        print(f"[DEBUG MCQ_eval] user_id was None or empty, set to: {repr(user_id)}")
+    
+    print(f"[DEBUG MCQ_eval] Final user_id: {repr(user_id)}")
+    
     if business_id is None:
         business_id = generate_business_id(dataset_name, model_name)
         result_file = f"results/{user_id}/{business_id}_result.json"
+        print(f"[DEBUG MCQ_eval] Generated result_file path: {result_file}")
     else:
         # 检查是否存在指定business_id的结果文件
         import glob
         pattern = f"results/{user_id}/*{business_id}_result.json"
+        print(f"[DEBUG MCQ_eval] Search pattern: {pattern}")
         matching_files = glob.glob(pattern)
         if not matching_files:
             raise FileNotFoundError(f"找不到business_id为{business_id}的结果文件")
@@ -621,6 +634,9 @@ def evaluate_all_mcq_automatic(
             write_json_file(existing_results, result_file, business_id, dataset_name, model_name)
     
     score_file = f"results/{user_id}/{business_id}_score.json"
+    print(f"[DEBUG MCQ_eval] Generated score_file path: {score_file}")
+    print(f"[DEBUG MCQ_eval] user_id for score_file: {repr(user_id)}")
+    print(f"[DEBUG MCQ_eval] business_id for score_file: {repr(business_id)}")
     valid_ratio, score = calculate_valid_ratio_and_score(result_file, answers, score_file, question_type_list, neglected_threshold=0.05, max_score=max_score, business_id=business_id, dataset_name=dataset_name, model_name=model_name)
     return valid_ratio, score
 
@@ -719,12 +735,21 @@ def calculate_valid_ratio_and_score(result_file, answers, accuracy_file, questio
     return valid_ratio, score
 
 if __name__ == "__main__":
+    # 使用配置模块获取API密钥，而不是硬编码
+    try:
+        api_key = config.get_api_key_safe()
+        api_base = config.get_api_base_safe()
+    except ValueError as e:
+        print(f"配置错误: {e}")
+        print("请设置环境变量OPENAI_API_KEY和OPENAI_API_BASE")
+        exit(1)
+    
     score = evaluate_all_mcq_automatic(
         user_id="test",
         dataset_name="MMStar",
         model_name="Pro/Qwen/Qwen2.5-VL-7B-Instruct",
-        model_key="sk-fPz5uPZn2ubb9Qexx62yWcFl55Z46iRdBfdlvnjufQ6o0BVo",
-        api_base="https://api.huatuogpt.cn/v1",
+        model_key=api_key,
+        api_base=api_base,
         business_id=None,
         question_limitation=100,  # 测试50题
         max_workers=64

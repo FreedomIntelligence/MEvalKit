@@ -118,7 +118,8 @@
                 {% set sorted_models = models.items() | list %}
                 {% set sorted_models = sorted_models | sort(attribute='1.average', reverse=true) %}
                 
-                {% for rank, (model_name, model_data) in enumerate(sorted_models, 1) %}
+                {% for model_name, model_data in sorted_models %}
+                {% set rank = loop.index %}
                 <div class="model-row">
                     <div class="row align-items-center">
                         <div class="col-md-1">

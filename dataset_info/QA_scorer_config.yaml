@@ -1,6 +1,7 @@
 MT-Bench:
   criteria: llmjudge
   judge_model: gpt-4o
+  max_score: 10
   system_prompt: |
     Please act as an impartial judge and evaluate the quality of the response provided by an AI assistant to the user question displayed below. Your evaluation should consider factors such as the helpfulness, relevance, accuracy, depth, creativity, and level of detail of the response. You evaluation should focus on the assistant's answer to the second user question. Begin your evaluation by providing a short explanation. Be as objective as possible. After providing your explanation, you must rate the response on a scale of 1 to 10 by strictly following this format: "[[rating]]", for example: "Rating: [[5]]".
   judge_prompt: |
@@ -42,6 +43,7 @@ MT-Bench:
 MedEthicsMatrixCase:
   criteria: llmjudge
   judge_model: gpt-4o
+  max_score: 5
   system_prompt: |
     # 评估维度与评分标准 (1-5分)
 
@@ -119,10 +121,10 @@ MedEthicsMatrixCase:
   judge_prompt: |
     <|The Start of Assistant A's Conversation with User|>
     ### User:
-    {question_1}
+    {question}
 
     ### Assistant A:
-    {response_1}
+    {response}
     <|The End of Assistant A's Conversation with User|>
   reference_answer_prompt: null
   reference_prompt: null
@@ -199,6 +201,7 @@ HealthBench:
 DotaBench:
   criteria: llmjudge
   judge_model: gpt-4o
+  max_score: 10
   system_prompt: |
     Please act as an impartial judge and evaluate the quality of the response provided by an AI assistant to the user question displayed below.
     Requirements: Your assessment should focus on the overall quality of the responses based on the following criteria:\n\

@@ -9,6 +9,7 @@ import json
 import concurrent.futures
 
 from tqdm import tqdm
+from src.utils.config import config
 
 project_root = Path(__file__).resolve().parent.parent
 sys.path.append(str(project_root))
@@ -270,14 +271,23 @@ class Agent_response_generator:
 
 
 if __name__ == "__main__":
+    # 使用配置模块获取API密钥，而不是硬编码
+    try:
+        api_key = config.get_api_key_safe()
+        api_base = config.get_api_base_safe()
+    except ValueError as e:
+        print(f"配置错误: {e}")
+        print("请设置环境变量OPENAI_API_KEY和OPENAI_API_BASE")
+        exit(1)
+    
     generator = Agent_response_generator(
         user_id="test",
         dataset_name="IOR-Dynamic",
         agent_1_model="gpt-4o",
         agent_2_model="doubao-1.5-pro-32k", 
         response_agent_model="doubao-1.5-pro-32k",
-        model_key="sk-fPz5uPZn2ubb9Qexx62yWcFl55Z46iRdBfdlvnjufQ6o0BVo",
-        api_base="https://api.huatuogpt.cn/v1",
+        model_key=api_key,
+        api_base=api_base,
         business_id=None,
         question_limitation=50,
         max_workers=4

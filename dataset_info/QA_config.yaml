@@ -149,7 +149,7 @@ IOR-static:
 
 DotaBench:
   language: zh
-  max_score: 100
+  max_score: 10
   background: null
   case: null
   image: null

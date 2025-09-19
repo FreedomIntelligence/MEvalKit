@@ -25,6 +25,7 @@ from evaluation.QA_eval import QA_evaluator
 from evaluation.Agent_eval import Agent_evaluator
 
 from src.utils.model_and_dataset import *
+from src.utils.config import config
 
 
 def parse_evaluation_mode():
@@ -73,11 +74,11 @@ def parse_automatic_args(unknown_args):
     parser = argparse.ArgumentParser()
     parser.add_argument("--user_id", type=str, required=False, default="test",
                         help="用户id")
-    parser.add_argument("--dataset", type=str, required=False, default="GPQA",
+    parser.add_argument("--dataset", type=str, required=False, default="DotaBench",
                         help="数据集名称，例如MMLU、GPQA、IOR-Dynamic等")
     parser.add_argument("--evaluation_type", type=str, required=False, default="auto",
                         help="评测类型：auto（自动检测）、MCQ、QA、Agent")
-    parser.add_argument("--model_name", type=str, required=False, default="Qwen3-30B-A3B-Thinking-2507",
+    parser.add_argument("--model_name", type=str, required=False, default="doubao-1.5-pro-32k",
                         help="准备进行评测的模型名称")
     # Agent评测专用参数
     parser.add_argument("--agent_1_model", type=str, required=False, default="gpt-4o",
@@ -86,15 +87,15 @@ def parse_automatic_args(unknown_args):
                         help="Agent_2模型（默认使用model_name）")
     parser.add_argument("--response_agent_model", type=str, required=False, default=None,
                         help="Response Agent模型（默认使用model_name）")
-    parser.add_argument("--api_base", type=str, required=False, default="http://aistation.sribd.cn:30003/v1",
+    parser.add_argument("--api_base", type=str, required=False, default=config.default_api_base,
                         help="API接口地址")
     parser.add_argument("--model_key", type=str, required=False, default="",
-                        help="模型key")
+                        help="模型key（如未提供将使用环境变量OPENAI_API_KEY）")
     parser.add_argument("--business_id", type=str, required=False, default=None,
                         help="业务id，如果不提供则自动生成新的business_id")
-    parser.add_argument("--question_limitation", type=int, required=False, default=100,
+    parser.add_argument("--question_limitation", type=int, required=False, default=5,
                         help="评测的问题数量")
-    parser.add_argument("--max_workers", type=int, required=False, default=32,
+    parser.add_argument("--max_workers", type=int, required=False, default=64,
                         help="并行工作线程数")
 
     return parser.parse_args(unknown_args)
@@ -160,6 +161,18 @@ def main():
         args = parse_automatic_args(unknown_args)
         print(f"评估数据集: {args.dataset}")
         print(f"使用模型: {args.model_name}")
+        print(f"[DEBUG run.py] user_id from args: {repr(args.user_id)}")
+        
+        # 验证和设置API密钥
+        try:
+            api_key = config.get_api_key_safe(args.model_key)
+            api_base = config.get_api_base_safe(args.api_base)
+            print(f"API Base: {api_base}")
+            print(f"API Key已设置: {'是' if api_key else '否'}")
+        except ValueError as e:
+            print(f"配置错误: {e}")
+            print("请设置环境变量OPENAI_API_KEY或通过--model_key参数提供")
+            return
         
         import json
         results = {}
@@ -188,8 +201,8 @@ def main():
                 user_id=args.user_id,
                 dataset_name=args.dataset,
                 model_name=args.model_name,
-                model_key=args.model_key,
-                api_base=args.api_base,
+                model_key=api_key,
+                api_base=api_base,
                 business_id=args.business_id,
                 question_limitation=args.question_limitation,
                 max_workers=args.max_workers
@@ -206,8 +219,8 @@ def main():
                 user_id=args.user_id,
                 dataset_name=args.dataset,
                 model_name=args.model_name,
-                model_key=args.model_key,
-                api_base=args.api_base,
+                model_key=api_key,
+                api_base=api_base,
                 business_id=args.business_id,
                 question_limitation=args.question_limitation,
                 max_workers=args.max_workers
@@ -228,8 +241,8 @@ def main():
                 agent_1_model=args.agent_1_model,
                 agent_2_model=args.agent_2_model or args.model_name,
                 response_agent_model=args.response_agent_model or args.model_name,
-                model_key=args.model_key,
-                api_base=args.api_base,
+                model_key=api_key,
+                api_base=api_base,
                 business_id=args.business_id,
                 question_limitation=args.question_limitation,
                 max_workers=args.max_workers

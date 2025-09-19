@@ -39,10 +39,12 @@ DATASET_CATEGORIES = {
 TEXT_DATASETS = ["MMLU", "GPQA", "CMB", "MedEthicsMatrixMCQ", "CMMLUMed"]
 
 # 多模态数据集（使用ImageMCQ_eval模块评测）
-MULTIMODAL_DATASETS = ["MMStar", "TestImageMCQ"]
+MULTIMODAL_DATASETS = ["MMStar"]
 
 # LLMJudge型数据集（使用LLMJudge_eval模块评测）
-LLMJUDGE_DATASETS = ["MT-Bench", "MedEthicsMatrixCase", "HealthBench"]
+LLMJUDGE_DATASETS = ["MT-Bench", "MedEthicsMatrixCase", "HealthBench", "IOR-static", "DotaBench"]
+
+AGENT_DATASETS = ["IOR-Dynamic"]
 
 # 模型分类定义
 

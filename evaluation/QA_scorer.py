@@ -12,6 +12,7 @@ if str(project_root) not in sys.path:
 
 try:
     from src.api.ConversationAPI import ConversationAPI
+    from src.utils.config import config
 except ImportError as e:
     print(f"Import error: {e}")
     print(f"Current working directory: {os.getcwd()}")
@@ -99,11 +100,16 @@ class Scorer:
 class LLMJudge_scorer(Scorer):
     def __init__(self, dataset_name, user_id, business_id):
         super().__init__(dataset_name, user_id, business_id)
+        
+        # Use provided parameters or fall back to config defaults
         self.judge_model = SCORER_CONFIG[dataset_name]['judge_model']
+        
         self.system_prompt = SCORER_CONFIG[dataset_name]['system_prompt']
         self.judge_prompt = SCORER_CONFIG[dataset_name]['judge_prompt']
         self.reference_answer_prompt = SCORER_CONFIG[dataset_name]['reference_answer_prompt']
         self.reference_prompt = SCORER_CONFIG[dataset_name]['reference_prompt']
+
+        self.max_score = SCORER_CONFIG[dataset_name]['max_score']
     
     def extract_scores(self, response_text):
         """
@@ -276,6 +282,19 @@ class LLMJudge_scorer(Scorer):
                         reference_prompt = self._generate_prompt("reference_prompt")
                 
                 evaluate_prompt = response_prompt + "\n" + answer_prompt + "\n" + reference_prompt
+            
+            # 使用配置模块安全获取API密钥
+            try:
+                api_key = config.get_api_key_safe()
+                api_base = config.get_api_base_safe()
+            except (ValueError, AttributeError):
+                # 降级处理，使用默认值（但这通常会失败，因为没有硬编码密钥了）
+                print("警告: 无法获取API配置，请检查环境变量设置")
+                api_key = os.getenv('OPENAI_API_KEY', '')
+                api_base = os.getenv('OPENAI_API_BASE', 'https://api.openai.com/v1')
+                if not api_key:
+                    raise ValueError("API密钥未设置，请设置环境变量OPENAI_API_KEY")
+            
             scorer_api = ConversationAPI(
                 model_name=self.judge_model,
                 system_prompt=self.system_prompt,
@@ -283,8 +302,8 @@ class LLMJudge_scorer(Scorer):
                 image_input=None,
                 temperature=0.7,
                 conversation_id=None,
-                model_key="sk-fPz5uPZn2ubb9Qexx62yWcFl55Z46iRdBfdlvnjufQ6o0BVo",
-                api_base="https://api.huatuogpt.cn/v1",
+                model_key=api_key,
+                api_base=api_base,
                 enable_history=False
             )
             scorer_response = scorer_api.generate_response()
@@ -312,17 +331,19 @@ class LLMJudge_scorer(Scorer):
         if valid_questions > 0:
             valid_ratio = valid_questions / total_questions
             average_score = sum(scores) / len(scores)
-            
+            final_score = average_score / self.max_score * 100
             score_results = {
                 "valid_ratio": valid_ratio,
-                "score": average_score
+                "score": average_score,
+                "final_score": final_score
             }
             
             self._save_score_results(score_results)
         else:
             score_results = {
                 "valid_ratio": 0.0,
-                "score": 0.0
+                "score": 0.0,
+                "final_score": 0.0
             }
             self._save_score_results(score_results)
 
@@ -571,6 +592,18 @@ class Rubric_scorer(Scorer):
                     evaluate_prompt = self._generate_prompt(question, response, rubric_items)
                     
                     # 调用API进行评分
+                    # 使用配置模块安全获取API密钥
+                    try:
+                        api_key = config.get_api_key_safe()
+                        api_base = config.get_api_base_safe()
+                    except (ValueError, AttributeError):
+                        # 降级处理
+                        print("警告: 无法获取API配置，请检查环境变量设置")
+                        api_key = os.getenv('OPENAI_API_KEY', '')
+                        api_base = os.getenv('OPENAI_API_BASE', 'https://api.openai.com/v1')
+                        if not api_key:
+                            raise ValueError("API密钥未设置，请设置环境变量OPENAI_API_KEY")
+                    
                     scorer_api = ConversationAPI(
                         model_name=self.judge_model,
                         system_prompt=self.system_prompt,
@@ -578,8 +611,8 @@ class Rubric_scorer(Scorer):
                         image_input=None,
                         temperature=0.3,
                         conversation_id=None,
-                        model_key="sk-fPz5uPZn2ubb9Qexx62yWcFl55Z46iRdBfdlvnjufQ6o0BVo",
-                        api_base="https://api.huatuogpt.cn/v1",
+                        model_key=api_key,
+                        api_base=api_base,
                         enable_history=False
                     )
                     
@@ -636,7 +669,7 @@ class Rubric_scorer(Scorer):
         return score_results
 
 if __name__ == "__main__":
-    scorer = Rubric_scorer("HealthBench", "test", "HealthBench_doubao-1.5-pro-32k_202509091443")
+    scorer = LLMJudge_scorer("MedEthicsMatrixCase", "test", "MedEthicsMatrixCase_doubao-1.5-pro-32k_202509142032")
     scorer.scoring()
 
 

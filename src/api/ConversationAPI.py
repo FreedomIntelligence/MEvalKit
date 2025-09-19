@@ -12,6 +12,18 @@ from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 import ssl
 import time
+import sys
+from pathlib import Path
+
+# 添加项目根目录到路径以导入配置模块
+project_root = Path(__file__).resolve().parent.parent.parent
+sys.path.insert(0, str(project_root))
+
+try:
+    from src.utils.config import config
+except ImportError:
+    # 如果导入失败，使用基本的环境变量处理
+    config = None
 
 # 禁用SSL警告
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -43,8 +55,26 @@ class ConversationAPI:
         self.conversation_id = conversation_id or "default"
         self.enable_history = enable_history
         self.conversation_history: Dict[str, List[Dict[str, Any]]] = {}
-        self.model_key = model_key if model_key is not None and model_key != "" else os.environ['OPENAI_API_KEY']
-        self.api_base = api_base if api_base is not None and api_base != "" else os.environ['OPENAI_API_BASE']
+        
+        # 安全地设置API密钥和基础URL
+        if config:
+            # 使用配置模块的安全方法
+            try:
+                self.model_key = config.get_api_key_safe(model_key)
+                self.api_base = config.get_api_base_safe(api_base)
+            except ValueError as e:
+                print(f"警告: {e}")
+                # 降级到环境变量处理
+                self.model_key = model_key or os.getenv('OPENAI_API_KEY', '')
+                self.api_base = api_base or os.getenv('OPENAI_API_BASE', 'https://api.openai.com/v1')
+        else:
+            # 传统的环境变量处理方式
+            self.model_key = model_key or os.getenv('OPENAI_API_KEY', '')
+            self.api_base = api_base or os.getenv('OPENAI_API_BASE', 'https://api.openai.com/v1')
+        
+        # 验证API密钥是否有效
+        if not self.model_key:
+            raise ValueError("API密钥未提供: 请设置环境变量OPENAI_API_KEY或在调用时提供model_key参数")
         
 
     def handle_image_url(self):

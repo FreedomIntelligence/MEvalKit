@@ -756,6 +756,17 @@ def run_evaluation():
     user_id = request.form.get('user_id', DEFAULT_USER)
     response_url = request.form.get('response_url', '')
     
+    # 调试信息 - 打印user_id的实际值
+    print(f"[DEBUG] Original user_id from form: {repr(user_id)}")
+    print(f"[DEBUG] DEFAULT_USER: {repr(DEFAULT_USER)}")
+    
+    # 确保user_id不为None或空字符串
+    if not user_id:
+        user_id = DEFAULT_USER
+        print(f"[DEBUG] user_id was falsy, set to DEFAULT_USER: {repr(user_id)}")
+    
+    print(f"[DEBUG] Final user_id: {repr(user_id)}")
+    
     # 参数验证
     if not evaluation_mode or not dataset:
         return jsonify({
@@ -801,11 +812,17 @@ def run_evaluation():
     
     # 生成business_id
     if evaluation_mode == "automatic":
-        business_id = generate_business_id(dataset, model_name)
+        # automatic模式下不预先生成business_id，让评估模块自己生成
+        business_id = None
     else:
         business_id = f"{dataset}_manual_{int(time.time())}"
     
-    task_id = business_id
+    # 为任务生成唯一ID
+    if business_id is not None:
+        task_id = business_id
+    else:
+        # automatic模式下生成临时task_id
+        task_id = f"{dataset}_{model_name}_{int(time.time())}"
     
     # 自动检测或使用指定的评估类型
     if evaluation_type == "auto":
@@ -867,10 +884,16 @@ def run_evaluation():
                 "--evaluation_mode", evaluation_mode,
                 "--evaluation_type", eval_type,
                 "--dataset", dataset, 
-                "--business_id", business_id,
                 "--user_id", user_id,
                 "--question_limitation", str(question_limit) if question_limit else "100",
                 "--max_workers", str(workers)]
+            
+            # 只在business_id不为None时添加
+            if business_id is not None:
+                cmd.extend(["--business_id", business_id])
+            
+            print(f"[DEBUG] Constructed command: {cmd}")
+            print(f"[DEBUG] user_id being passed to command: {repr(user_id)}")
             
             # 添加模式特定参数
             if evaluation_mode == "automatic":

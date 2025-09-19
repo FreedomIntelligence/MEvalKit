@@ -10,6 +10,7 @@ sys.path.append(str(project_root))
 from evaluation.QA_response_generator import QA_answer_generator
 from evaluation.QA_scorer import LLMJudge_scorer, Accuracy_scorer, Rubric_scorer
 from src.dataset.QA import QA
+from src.utils.config import config
 
 QA_SCORER_CONFIG_PATH = "dataset_info/QA_scorer_config.yaml"
 
@@ -108,25 +109,25 @@ class QA_evaluator:
                 dataset_name=self.dataset_name,
                 user_id=self.user_id,
                 business_id=self.business_id,
-                judge_model=self.judge_model,
-                judge_key=self.judge_key,
-                judge_api_base=self.judge_api_base,
-                max_workers=self.max_workers
+                # judge_model=self.judge_model,
+                # judge_key=self.judge_key,
+                # judge_api_base=self.judge_api_base,
+                # max_workers=self.max_workers
             )
         elif self.criteria == 'rubrics':
             scorer = Rubric_scorer(
                 dataset_name=self.dataset_name,
                 user_id=self.user_id,
                 business_id=self.business_id,
-                judge_model=self.judge_model,
-                judge_key=self.judge_key,
-                judge_api_base=self.judge_api_base,
-                max_workers=self.max_workers
+                # judge_model=self.judge_model,
+                # judge_key=self.judge_key,
+                # judge_api_base=self.judge_api_base,
+                # max_workers=self.max_workers
             )
         else:
             raise ValueError(f"不支持的评分标准: {self.criteria}")
         
-        return scorer.score_responses()
+        return scorer.scoring()
     
     def run_full_evaluation(self) -> Dict[str, str]:
         """运行完整的评估流程：生成响应 -> 评分"""
@@ -161,18 +162,27 @@ class QA_evaluator:
 
 def main():
     """主函数示例"""
+    # 使用配置模块获取API密钥，而不是硬编码
+    try:
+        api_key = config.get_api_key_safe()
+        api_base = config.get_api_base_safe()
+    except ValueError as e:
+        print(f"配置错误: {e}")
+        print("请设置环境变量OPENAI_API_KEY和OPENAI_API_BASE")
+        return
+    
     evaluator = QA_evaluator(
         user_id="test",
         dataset_name="DotaBench",
         model_name="doubao-1.5-pro-32k",
-        model_key="sk-fPz5uPZn2ubb9Qexx62yWcFl55Z46iRdBfdlvnjufQ6o0BVo",
-        api_base="https://api.huatuogpt.cn/v1",
+        model_key=api_key,
+        api_base=api_base,
         business_id=None,
         question_limitation=5,
         max_workers=4,
         judge_model="gpt-4o",
-        judge_key="sk-fPz5uPZn2ubb9Qexx62yWcFl55Z46iRdBfdlvnjufQ6o0BVo",
-        judge_api_base="https://api.huatuogpt.cn/v1"
+        judge_key=api_key,
+        judge_api_base=api_base
     )
     
     result = evaluator.run_full_evaluation()
